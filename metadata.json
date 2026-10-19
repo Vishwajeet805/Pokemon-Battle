@@ -1,0 +1,6 @@
+{
+  "name": "Pocket Medallion",
+  "description": "A high-energy Pokémon-style mobile-first multiplayer creature battle game.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
