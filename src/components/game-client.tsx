@@ -1,31 +1,281 @@
 "use client";
+
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useMemo, useState } from "react";
-import { Activity, ChevronRight, Coins, Crown, Flame, Gem, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
-const BattleScene = dynamic(() => import("./battle-scene"), { ssr: false, loading: () => <div className="scene-wrap" /> });
-const POKE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/";
-type Mon = { id: number; name: string; type: string; cp: number; hp: number };
-const roster: Mon[] = [
- {id:6,name:"Charizard",type:"Fire · Flying",cp:2840,hp:100},{id:25,name:"Pikachu",type:"Electric",cp:1920,hp:92},{id:9,name:"Blastoise",type:"Water",cp:2630,hp:96},{id:3,name:"Venusaur",type:"Grass · Poison",cp:2510,hp:88},{id:94,name:"Gengar",type:"Ghost · Poison",cp:2380,hp:84},{id:150,name:"Mewtwo",type:"Psychic",cp:3210,hp:100},{id:149,name:"Dragonite",type:"Dragon · Flying",cp:2760,hp:93},{id:130,name:"Gyarados",type:"Water · Flying",cp:2670,hp:89},{id:448,name:"Lucario",type:"Fighting · Steel",cp:2580,hp:91},{id:197,name:"Umbreon",type:"Dark",cp:2240,hp:95},{id:384,name:"Rayquaza",type:"Dragon · Flying",cp:3400,hp:100},{id:249,name:"Lugia",type:"Psychic · Flying",cp:3150,hp:100}
+import { useEffect, useMemo, useState } from "react";
+import {
+  Activity, Bell, BookOpen, Check, ChevronDown, ChevronRight, Coins, Crown,
+  Dumbbell, Flame, Gem, Gift, Grid2X2, Heart, Home, Menu, PackageOpen,
+  Search, Settings, Shield, ShoppingBag, Sparkles, Swords, Trophy, Users,
+  X, Zap, Plus, Star, Filter, ArrowUpRight, Lock, Clock3, Target
+} from "lucide-react";
+
+const BattleScene = dynamic(() => import("./battle-scene"), {
+  ssr: false,
+  loading: () => <div className="battle-scene-loading">Preparing arena...</div>,
+});
+
+const ART = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/";
+type Pokemon = { id: number; name: string; type: string; cp: number; hp: number; rarity: string; };
+type Screen = "dashboard" | "pokedex" | "collection" | "team" | "battle" | "packs" | "gyms" | "raids" | "friends" | "guild" | "tech" | "profile";
+
+const roster: Pokemon[] = [
+  {id:6,name:"Charizard",type:"Fire · Flying",cp:2840,hp:100,rarity:"Legendary"},
+  {id:25,name:"Pikachu",type:"Electric",cp:1920,hp:92,rarity:"Rare"},
+  {id:9,name:"Blastoise",type:"Water",cp:2630,hp:96,rarity:"Epic"},
+  {id:3,name:"Venusaur",type:"Grass · Poison",cp:2510,hp:88,rarity:"Epic"},
+  {id:94,name:"Gengar",type:"Ghost · Poison",cp:2380,hp:84,rarity:"Epic"},
+  {id:150,name:"Mewtwo",type:"Psychic",cp:3210,hp:100,rarity:"Mythical"},
+  {id:149,name:"Dragonite",type:"Dragon · Flying",cp:2760,hp:93,rarity:"Legendary"},
+  {id:130,name:"Gyarados",type:"Water · Flying",cp:2670,hp:89,rarity:"Rare"},
+  {id:448,name:"Lucario",type:"Fighting · Steel",cp:2580,hp:91,rarity:"Epic"},
+  {id:197,name:"Umbreon",type:"Dark",cp:2240,hp:95,rarity:"Rare"},
+  {id:384,name:"Rayquaza",type:"Dragon · Flying",cp:3400,hp:100,rarity:"Mythical"},
+  {id:249,name:"Lugia",type:"Psychic · Flying",cp:3150,hp:100,rarity:"Legendary"},
+  {id:445,name:"Garchomp",type:"Dragon · Ground",cp:2980,hp:96,rarity:"Legendary"},
+  {id:59,name:"Arcanine",type:"Fire",cp:2310,hp:90,rarity:"Rare"},
+  {id:131,name:"Lapras",type:"Water · Ice",cp:2190,hp:98,rarity:"Epic"},
+  {id:282,name:"Gardevoir",type:"Psychic · Fairy",cp:2460,hp:87,rarity:"Epic"},
+  {id:448,name:"Lucario",type:"Fighting · Steel",cp:2580,hp:91,rarity:"Epic"},
+  {id:778,name:"Mimikyu",type:"Ghost · Fairy",cp:2180,hp:86,rarity:"Rare"},
 ];
+
+const navGroups = [
+  { label: "Main Activities", items: [
+    { id:"dashboard" as Screen, label:"Dashboard", icon:Home, meta:"HOME" },
+    { id:"battle" as Screen, label:"Battle Arena", icon:Swords, meta:"LIVE" },
+    { id:"pokedex" as Screen, label:"Pokédex", icon:BookOpen, meta:"1,025" },
+    { id:"collection" as Screen, label:"Collection", icon:Grid2X2, meta:"BINDER" },
+    { id:"team" as Screen, label:"Team Builder", icon:Users, meta:"6 SLOTS" },
+  ]},
+  { label: "Gameplay Modes", items: [
+    { id:"packs" as Screen, label:"Card Packs", icon:PackageOpen, meta:"STORE" },
+    { id:"gyms" as Screen, label:"Gym Challenges", icon:Shield, meta:"7/8" },
+    { id:"raids" as Screen, label:"Raid Bosses", icon:Zap, meta:"EVENT" },
+  ]},
+  { label: "Social & Progress", items: [
+    { id:"friends" as Screen, label:"Friends & Party", icon:Users, meta:"5 ONLINE" },
+    { id:"guild" as Screen, label:"Guild Hub", icon:Crown, meta:"GUILD" },
+    { id:"tech" as Screen, label:"Alliance Perks", icon:Activity, meta:"TREE" },
+  ]},
+];
+
+const screenTitles: Record<Screen, { title:string; eyebrow:string; subtitle:string }> = {
+  dashboard:{title:"Trainer Command Center",eyebrow:"Season 04 · Apex Evolution",subtitle:"Your next legendary moment starts here. Prepare your squad and enter the arena."},
+  pokedex:{title:"National Pokédex Archive",eyebrow:"Field Research · Generations 1–9",subtitle:"Search Pokémon, inspect their details and discover your next team member."},
+  collection:{title:"Your Card Collection",eyebrow:"Personal Binder · Digital Vault",subtitle:"Every discovery tells a story. Inspect, sort and celebrate your collection."},
+  team:{title:"Team Synergy Lab",eyebrow:"Squad Management · 6 Slots",subtitle:"Build a balanced six-Pokémon lineup before entering competitive play."},
+  battle:{title:"Battle Arena",eyebrow:"Live Combat · Turn Based",subtitle:"Read the field, choose your move and outplay your opponent."},
+  packs:{title:"Booster Pack Foundry",eyebrow:"Card Store · New Drops",subtitle:"Choose a pack, reveal its contents and expand your collection."},
+  gyms:{title:"Champion's Road",eyebrow:"League Progression · Kanto Circuit",subtitle:"Challenge gym leaders, earn badges and unlock the next stage."},
+  raids:{title:"World Event: Raid Bosses",eyebrow:"Cooperative Encounter · Limited Event",subtitle:"Join the event, prepare your strongest squad and take on a colossal boss."},
+  friends:{title:"Friends & Party Hub",eyebrow:"Social Network · Trainer Connections",subtitle:"Find fellow trainers, build a party and challenge friends."},
+  guild:{title:"Trainer Alliance Guild",eyebrow:"Community Operations · Guild HQ",subtitle:"Coordinate your alliance, review activity and contribute to shared goals."},
+  tech:{title:"Alliance Tech Tree",eyebrow:"Guild Research · Shared Perks",subtitle:"Contribute research points to unlock permanent alliance advantages."},
+  profile:{title:"Trainer Profile",eyebrow:"Identity · Records · Settings",subtitle:"Review your trainer record and personalize your game experience."},
+};
+
+function PokemonArt({ pokemon, size=100, className="" }: { pokemon:Pokemon; size?:number; className?:string }) {
+  return <Image src={ART + pokemon.id + ".png"} alt={pokemon.name} width={size} height={size} unoptimized className={className} />;
+}
+function TypeBadge({type}:{type:string}) {
+  const key=type.split(" · ")[0].toLowerCase();
+  return <span className={"type-badge type-"+key}>{type}</span>;
+}
+function Rarity({value}:{value:string}) { return <span className={"rarity-tag rarity-"+value.toLowerCase()}>{value}</span>; }
+
 export default function GameClient() {
- const [selected,setSelected]=useState(0),[turn,setTurn]=useState(1),[enemyHp,setEnemyHp]=useState(100),[toast,setToast]=useState("");
- const team=useMemo(()=>[roster[0],roster[2],roster[3],roster[4],roster[5],roster[8]],[]);
- const current=roster[selected];
- function attack(move:string,damage:number){const next=Math.max(0,enemyHp-damage);setEnemyHp(next);setTurn(v=>v+1);setToast(next===0?move+"! Victory — you won the practice match.":current.name+" used "+move+"! "+damage+" damage dealt.");window.setTimeout(()=>setToast(""),2600);if(next===0)window.setTimeout(()=>{setEnemyHp(100);setTurn(1)},3200);}
- return <main className="game-shell">
-  <header className="topbar"><div className="brand"><div className="brand-mark">◉</div><div>POKÉMON <span style={{color:"#f2c866"}}>BATTLE</span><div style={{color:"#8392ac",fontSize:9,letterSpacing:".24em",marginTop:3}}>TRAIN · COLLECT · CONQUER</div></div></div><div className="top-actions"><span className="pill"><Coins size={13} style={{display:"inline",verticalAlign:"middle",marginRight:6,color:"#f3c65d"}}/> 2,450</span><span className="pill"><Gem size={13} style={{display:"inline",verticalAlign:"middle",marginRight:6,color:"#75d9d3"}}/> 120</span><div className="profile-dot">S</div></div></header>
-  <section className="hero"><div><div className="eyebrow">Season 01 · Kanto League</div><h1>Your next <span style={{color:"#f3c65d"}}>legendary</span> battle awaits.</h1><p>Build your squad, master type matchups and rise through the League.</p></div><div className="hero-stat"><div className="stat"><b>LV. 12</b><span>Trainer level</span></div><div className="stat"><b>1,280</b><span>Battle rating</span></div><div className="stat"><b>08</b><span>Win streak</span></div></div></section>
-  <section className="arena-layout"><div className="arena-card"><div className="arena-head"><h2><Swords size={15} style={{display:"inline",verticalAlign:"middle",marginRight:8,color:"#f3c65d"}}/> PRACTICE ARENA</h2><span className="live">● TRAINING MATCH</span></div>
-   <div className="scene-wrap"><div className="battle-overlay"><div className="fighter"><Image src={POKE+current.id+".png"} alt={current.name} width={90} height={90} unoptimized/><div className="fighter-info"><div className="fighter-name">{current.name} <span style={{color:"#e8c36a"}}>Lv. 42</span></div><div className="hp-track"><div className="hp-fill" style={{width:current.hp+"%"}}/></div><div className="hp-label">HP {current.hp}/100</div></div></div>
-    <div className="fighter enemy"><div className="fighter-info"><div className="fighter-name">Garchomp <span style={{color:"#e8c36a"}}>Lv. 40</span></div><div className="hp-track"><div className="hp-fill" style={{width:enemyHp+"%"}}/></div><div className="hp-label">HP {enemyHp}/100</div></div><Image src={POKE+"445.png"} alt="Garchomp" width={90} height={90} unoptimized/></div></div><BattleScene/><div className="scene-caption">Ancient Ruins · Battle turn {turn}</div></div>
-   <div className="battle-controls"><div><div className="eyebrow" style={{marginBottom:5}}>Choose your move</div><div className="turn-label">Select an attack to continue the battle</div></div><div className="moves"><button className="move-btn primary" onClick={()=>attack("Flamethrower",22)}><Flame size={12} style={{display:"inline",verticalAlign:"middle",marginRight:5}}/>Flamethrower</button><button className="move-btn" onClick={()=>attack("Dragon Claw",18)}><Zap size={12} style={{display:"inline",verticalAlign:"middle",marginRight:5}}/>Dragon Claw</button><button className="move-btn" onClick={()=>attack("Protect",8)}><Shield size={12} style={{display:"inline",verticalAlign:"middle",marginRight:5}}/>Protect</button></div></div>
-  </div>
-  <aside className="side-column"><div className="side-card"><div className="side-title"><h3><Crown size={14} style={{display:"inline",verticalAlign:"middle",marginRight:7,color:"#f3c65d"}}/> YOUR BATTLE TEAM</h3><span>6 / 6</span></div><div className="team-list">{team.map(mon=><button key={mon.id} className={"team-row "+(current.id===mon.id?"active":"")} onClick={()=>setSelected(roster.findIndex(m=>m.id===mon.id))}><Image src={POKE+mon.id+".png"} alt={mon.name} width={52} height={52} unoptimized/><div><div className="team-name">{mon.name}</div><div className="team-type">{mon.type}</div></div><span className="team-power">{mon.cp} CP</span></button>)}</div></div>
-   <div className="side-card"><div className="side-title"><h3><Trophy size={14} style={{display:"inline",verticalAlign:"middle",marginRight:7,color:"#f3c65d"}}/> DAILY OBJECTIVES</h3><span>2 / 3</span></div><div style={{display:"grid",gap:13}}><div><div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span>Win 3 battles</span><span style={{color:"#8eddb3"}}>2/3</span></div><div className="hp-track"><div className="hp-fill" style={{width:"66%"}}/></div></div><div><div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span>Collect 5 Pokémon</span><span style={{color:"#8eddb3"}}>5/5</span></div><div className="hp-track"><div className="hp-fill" style={{width:"100%"}}/></div></div></div><p className="notice" style={{marginBottom:0,marginTop:14}}><Sparkles size={12} style={{display:"inline",verticalAlign:"middle",marginRight:5,color:"#f3c65d"}}/>Rewards and progression will connect to your trainer profile in the next development milestone.</p></div>
-  </aside></section>
-  <section className="collection-strip"><div className="collection-head"><h3><Activity size={15} style={{display:"inline",verticalAlign:"middle",marginRight:8,color:"#f3c65d"}}/> POKÉMON COLLECTION</h3><button className="section-btn">View Pokédex <ChevronRight size={12} style={{display:"inline",verticalAlign:"middle"}}/></button></div><div className="collection-grid">{roster.slice(0,6).map(mon=><button className="pokemon-card" key={mon.id} onClick={()=>setSelected(roster.findIndex(m=>m.id===mon.id))}><span className="rarity">★ RARE</span><Image src={POKE+mon.id+".png"} alt={mon.name} width={120} height={110} unoptimized/><strong>{mon.name}</strong><small>{mon.type} · {mon.cp} CP</small></button>)}</div></section>
-  <div className="footer-note">Fan-made prototype. Pokémon and related assets are trademarks and property of their respective owners.</div>{toast&&<div className="toast">{toast}</div>}
- </main>;
+  const [screen,setScreen]=useState<Screen>("dashboard");
+  const [mobileNav,setMobileNav]=useState(false);
+  const [toast,setToast]=useState("");
+  const [coins,setCoins]=useState(48250);
+  const [gems]=useState(1420);
+  const [selectedTeam,setSelectedTeam]=useState<number[]>([6,9,3,94,150,448]);
+  const [activePokemon,setActivePokemon]=useState(6);
+  const [search,setSearch]=useState("");
+  const [typeFilter,setTypeFilter]=useState("All Types");
+  const [pokedex,setPokedex]=useState<{id:number;name:string}[]>([]);
+  const [dexLoaded,setDexLoaded]=useState(false);
+  const [dexLoading,setDexLoading]=useState(false);
+  const [dexError,setDexError]=useState("");
+  const [dexDetail,setDexDetail]=useState<any>(null);
+  const [enemyHp,setEnemyHp]=useState(100);
+  const [turn,setTurn]=useState(1);
+  const [owned,setOwned]=useState<number[]>([6,25,9,3,94,150,149,130,448,197,384,249]);
+  const [packReveal,setPackReveal]=useState(false);
+  const [revealed,setRevealed]=useState<Pokemon[]>([]);
+  const [claimed,setClaimed]=useState(false);
+  const [activeTab,setActiveTab]=useState("All Cards");
+
+  const team=useMemo(()=>selectedTeam.map(id=>roster.find(p=>p.id===id)).filter(Boolean) as Pokemon[],[selectedTeam]);
+  const active=roster.find(p=>p.id===activePokemon) || roster[0];
+  const title=screenTitles[screen];
+
+  function notify(message:string) {
+    setToast(message);
+    window.setTimeout(()=>setToast(""),2800);
+  }
+  function navigate(next:Screen) {
+    setScreen(next);
+    setMobileNav(false);
+    setSearch("");
+    if(next==="battle") setEnemyHp(100);
+  }
+  function toggleTeam(id:number) {
+    setSelectedTeam(old=>{
+      if(old.includes(id)) return old.filter(x=>x!==id);
+      if(old.length>=6) { notify("Your team is full. Remove a Pokémon before adding another."); return old; }
+      return [...old,id];
+    });
+  }
+  function attack(move:string,damage:number) {
+    if(enemyHp<=0) return;
+    const next=Math.max(0,enemyHp-damage);
+    setEnemyHp(next);
+    setTurn(v=>v+1);
+    notify(next===0 ? "Victory! Garchomp has been defeated." : active.name+" used "+move+" — "+damage+" damage dealt.");
+    if(next===0) setCoins(v=>v+250);
+  }
+  function openPack(packName:string) {
+    if(coins<1200) { notify("Not enough coins for this pack."); return; }
+    setCoins(v=>v-1200);
+    const picks=[roster[(turn+1)%roster.length],roster[(turn+4)%roster.length],roster[(turn+6)%roster.length],roster[(turn+8)%roster.length],roster[(turn+10)%roster.length]];
+    setRevealed(picks);
+    setPackReveal(true);
+    setOwned(old=>Array.from(new Set([...old,...picks.map(p=>p.id)])));
+    notify(packName+" opened. Five cards added to your binder.");
+  }
+
+  useEffect(()=>{
+    if(screen!=="pokedex" || dexLoaded || dexLoading) return;
+    setDexLoading(true);
+    fetch("https://pokeapi.co/api/v2/pokemon?limit=1025&offset=0")
+      .then(r=>{if(!r.ok) throw new Error("Pokédex service is unavailable"); return r.json();})
+      .then(data=>{
+        const entries=data.results.map((item:{name:string;url:string})=>({id:Number(item.url.split("/").filter(Boolean).pop()),name:item.name}));
+        setPokedex(entries);
+        setDexLoaded(true);
+        setDexError("");
+      })
+      .catch(()=>setDexError("Could not load the live Pokédex. Check your connection and try again."))
+      .finally(()=>setDexLoading(false));
+  },[screen,dexLoaded,dexLoading]);
+
+  async function inspectPokemon(id:number) {
+    setDexDetail({loading:true,id});
+    try {
+      const response=await fetch("https://pokeapi.co/api/v2/pokemon/"+id);
+      if(!response.ok) throw new Error("Unable to load Pokémon details");
+      const data=await response.json();
+      setDexDetail({
+        id:data.id,name:data.name,types:data.types.map((t:any)=>t.type.name),
+        height:data.height,weight:data.weight,
+        stats:data.stats.map((s:any)=>({name:s.stat.name,value:s.base_stat})),
+        abilities:data.abilities.map((a:any)=>a.ability.name),
+      });
+    } catch { setDexDetail({id,name:"Unavailable",error:true}); }
+  }
+
+  const visibleDex=(pokedex.length?pokedex:roster.map(p=>({id:p.id,name:p.name.toLowerCase()})))
+    .filter(p=>p.name.includes(search.toLowerCase().trim()))
+    .slice(0,72);
+  const visibleCollection=roster.filter(p=>owned.includes(p.id) && (activeTab==="All Cards" || (activeTab==="Legendary" ? ["Legendary","Mythical"].includes(p.rarity) : p.rarity===activeTab)));
+
+  return <div className="app-frame">
+    <header className="global-topbar">
+      <button className="mobile-menu" onClick={()=>setMobileNav(v=>!v)} aria-label="Toggle navigation">{mobileNav?<X/>:<Menu/>}</button>
+      <button className="brand-lockup" onClick={()=>navigate("dashboard")}><span className="brand-emblem">◉</span><span><b>POKÉMON <i>BATTLE</i></b><small>TRAIN · COLLECT · CONQUER</small></span></button>
+      <div className="season-chip"><span/> SEASON 04: APEX EVOLUTION</div>
+      <div className="topbar-right">
+        <div className="currency-chip"><Coins size={15}/><b>{coins.toLocaleString("en-US")}</b><button onClick={()=>navigate("packs")} aria-label="Get coins"><Plus size={13}/></button></div>
+        <div className="currency-chip gem-chip"><Gem size={15}/><b>{gems.toLocaleString("en-US")}</b></div>
+        <div className="level-chip"><Crown size={15}/><b>LVL 64</b><span><i/></span><small>82% XP</small></div>
+        <button className="icon-button" onClick={()=>notify("You're all caught up on notifications.")} aria-label="Notifications"><Bell size={17}/><em/></button>
+        <button className="trainer-chip" onClick={()=>navigate("profile")}><span className="trainer-avatar">R</span><span><b>Champion Red_Apex</b><small>3,480 ELO · Master IV</small></span><ChevronDown size={14}/></button>
+      </div>
+    </header>
+
+    <aside className={"sidebar "+(mobileNav?"sidebar-open":"")}>
+      <div className="sidebar-scroll">
+        {navGroups.map(group=><div className="nav-group" key={group.label}>
+          <div className="nav-label">{group.label}</div>
+          {group.items.map(item=>{
+            const Icon=item.icon;
+            return <button key={item.id} className={"nav-item "+(screen===item.id?"nav-active":"")} onClick={()=>navigate(item.id)}>
+              <Icon size={17}/><span>{item.label}</span><small>{item.meta}</small>
+            </button>;
+          })}
+        </div>)}
+      </div>
+      <div className="sidebar-bottom"><div className="league-card"><div className="league-icon"><Trophy size={20}/></div><div><b>Kanto League</b><small>Champion tier · 7/8 badges</small></div></div><button className="nav-item" onClick={()=>navigate("profile")}><Settings size={17}/><span>Settings & Profile</span><ChevronRight size={14}/></button><div className="sidebar-version">POKÉMON BATTLE · BUILD 0.2.0</div></div>
+    </aside>
+
+    <main className="main-content">
+      <div className="page-heading"><div><div className="eyebrow">{title.eyebrow}</div><h1>{title.title}</h1><p>{title.subtitle}</p></div><div className="heading-actions"><span className="connection-pill"><i/> GAME SYSTEMS ONLINE</span><button className="outline-button" onClick={()=>notify("Trainer guide is coming in the next update.")}> <BookOpen size={14}/> Guide</button></div></div>
+
+      {screen==="dashboard" && <Dashboard team={team} owned={owned.length} coins={coins} claimed={claimed} onClaim={()=>{if(!claimed){setCoins(v=>v+500);setClaimed(true);notify("Daily reward claimed: +500 coins.");}}} onNavigate={navigate} onToast={notify}/>}
+      {screen==="pokedex" && <section className="panel-stack">
+        <div className="panel toolbar-panel"><div className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Pokémon name or number..."/></div><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option>All Types</option><option>Owned</option><option>Unowned</option></select><span className="result-count">{pokedex.length? "1,025": "Featured"} ENTRIES</span></div>
+        {dexLoading&&<div className="panel loading-panel"><Sparkles className="spin-icon"/> Connecting to PokéAPI and loading the National Pokédex...</div>}
+        {dexError&&<div className="panel error-panel">{dexError}<button className="outline-button" onClick={()=>{setDexLoaded(false);setDexError("");}}>Retry</button></div>}
+        <div className="dex-grid">{visibleDex.map(p=>{
+          const mon=roster.find(m=>m.id===p.id);
+          const isOwned=owned.includes(p.id);
+          if(typeFilter==="Owned"&&!isOwned) return null;
+          if(typeFilter==="Unowned"&&isOwned) return null;
+          return <button className={"dex-card "+(!isOwned?"dex-unowned":"")} key={p.id} onClick={()=>inspectPokemon(p.id)}><span className="dex-number">#{String(p.id).padStart(4,"0")}</span><img src={ART+p.id+".png"} alt={p.name} loading="lazy"/><b>{p.name.replace(/-/g," ")}</b><small>{mon?.type||"Pokémon species"}</small><span className="dex-owned">{isOwned?"IN BINDER":"UNDISCOVERED"}</span></button>;
+        })}</div>
+        {!dexLoading&&visibleDex.length===0&&<div className="empty-panel">No Pokémon matched your search.</div>}
+        {dexDetail&&<div className="modal-backdrop" onClick={()=>setDexDetail(null)}><div className="detail-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setDexDetail(null)}><X/></button>{dexDetail.loading?<div className="loading-panel">Loading Pokémon data...</div>:<><div className="detail-art"><img src={ART+dexDetail.id+".png"} alt={dexDetail.name}/></div><div className="detail-content"><div className="eyebrow">NATIONAL POKÉDEX #{dexDetail.id}</div><h2>{dexDetail.name?.replace(/-/g," ")}</h2>{dexDetail.error?<p>Pokémon details could not be loaded.</p>:<><div className="type-row">{dexDetail.types?.map((t:string)=><TypeBadge key={t} type={t}/>)}</div><div className="detail-facts"><span>HEIGHT <b>{(dexDetail.height/10).toFixed(1)} m</b></span><span>WEIGHT <b>{(dexDetail.weight/10).toFixed(1)} kg</b></span></div><h3>BASE STATS</h3>{dexDetail.stats?.map((s:any)=><div className="stat-line" key={s.name}><span>{s.name.replace("-"," ")}</span><b>{s.value}</b><i><em style={{width:Math.min(100,s.value/2)+"%"}}/></i></div>)}<p className="ability-line">Abilities: {dexDetail.abilities?.join(", ")}</p></>}</div></>}</div></div>}
+      </section>}
+
+      {screen==="collection"&&<section className="panel-stack"><div className="panel collection-toolbar"><div><b>{owned.length} / 1,025</b><small>DISCOVERED SPECIES</small></div><div className="tab-row">{["All Cards","Rare","Epic","Legendary"].map(t=><button key={t} className={activeTab===t?"tab-active":""} onClick={()=>setActiveTab(t)}>{t}</button>)}</div></div><div className="collectible-grid">{visibleCollection.map(p=><PokemonCard key={p.id} pokemon={p} onClick={()=>{setActivePokemon(p.id);notify(p.name+" selected in your collection.");}}/>)}</div></section>}
+
+      {screen==="team"&&<section className="team-builder-layout"><div className="panel team-board"><div className="section-heading"><div><h2>ACTIVE SQUAD</h2><p>Select up to six Pokémon for your battle formation.</p></div><span className="team-counter">{selectedTeam.length}/6</span></div><div className="team-slots">{Array.from({length:6}).map((_,i)=>{const p=team[i];return <div className={"team-slot "+(p?"slot-filled":"")} key={i}>{p?<><button className="slot-remove" onClick={()=>toggleTeam(p.id)} aria-label={"Remove "+p.name}><X size={13}/></button><PokemonArt pokemon={p} size={112}/><b>{p.name}</b><small>{p.type}</small><Rarity value={p.rarity}/></>:<><Plus size={22}/><b>EMPTY SLOT</b><small>Choose a Pokémon</small></>}</div>;})}</div><div className="team-footer"><div><small>TEAM POWER</small><b>{team.reduce((n,p)=>n+p.cp,0).toLocaleString("en-US")} CP</b></div><button className="gold-button" disabled={selectedTeam.length!==6} onClick={()=>notify("Six-Pokémon lineup saved for this session.")}><Check size={15}/> SAVE TEAM</button></div></div><div className="panel roster-panel"><div className="section-heading"><div><h2>AVAILABLE POKÉMON</h2><p>Choose from your discovered roster.</p></div><span>{roster.length} SPECIES</span></div><div className="mini-roster">{roster.map(p=><button key={p.id} className={"mini-mon "+(selectedTeam.includes(p.id)?"mini-selected":"")} onClick={()=>toggleTeam(p.id)}><PokemonArt pokemon={p} size={56}/><span><b>{p.name}</b><small>{p.type}</small></span>{selectedTeam.includes(p.id)?<Check size={16}/>:<Plus size={16}/>}</button>)}</div></div></section>}
+
+      {screen==="battle"&&<BattleView active={active} team={team} enemyHp={enemyHp} turn={turn} onSelect={setActivePokemon} onAttack={attack} onReset={()=>{setEnemyHp(100);setTurn(1);notify("Practice battle reset.");}}/>}
+
+      {screen==="packs"&&<section className="panel-stack"><div className="pack-feature"><div><div className="eyebrow">FEATURED DROP · LIMITED TIME</div><h2>PRIMAL APEX SUMMON</h2><p>Five cards. One chance at a legendary pull. Add fresh discoveries to your binder.</p><div className="pack-meta"><span><Star size={14}/> RARE · EPIC · LEGENDARY</span><span><PackageOpen size={14}/> 5 CARDS</span></div><button className="gold-button" onClick={()=>openPack("Primal Apex Summon")}><PackageOpen size={16}/> OPEN PACK · 1,200 COINS</button></div><div className="pack-art"><div className="pack-glow"/><div className="pack-card"><Sparkles size={38}/><b>PRIMAL<br/>APEX</b><small>COLLECTOR SERIES</small></div></div></div><div className="section-heading"><div><h2>AVAILABLE PACKS</h2><p>Choose a booster to expand your collection.</p></div></div><div className="pack-grid">{["Primal Apex","Kanto Origins","Elemental Clash"].map((p,i)=><div className="panel pack-tile" key={p}><div className={"pack-mini pack-mini-"+i}><PackageOpen size={28}/></div><b>{p}</b><small>5 CARDS · GUARANTEED RARE</small><button className="outline-button" onClick={()=>openPack(p)}>OPEN · 1,200 <Coins size={13}/></button></div>)}</div></section>}
+
+      {screen==="gyms"&&<section className="panel-stack"><div className="gym-progress"><div><div className="eyebrow">KANTO LEAGUE CIRCUIT</div><h2>7 OF 8 BADGES ACQUIRED</h2><p>One final challenge stands between you and the Indigo Champion.</p></div><div className="badge-medal"><Trophy size={34}/><b>7/8</b></div></div><div className="gym-grid">{["Pewter · Brock","Cerulean · Misty","Vermilion · Lt. Surge","Celadon · Erika","Fuchsia · Koga","Saffron · Sabrina","Cinnabar · Blaine","Viridian · Giovanni"].map((g,i)=><div className={"panel gym-tile "+(i<7?"gym-cleared":"gym-locked")} key={g}><div className="gym-icon">{i<7?<Shield size={25}/>:<Lock size={23}/>}</div><span className="eyebrow">GYM {String(i+1).padStart(2,"0")}</span><b>{g}</b><small>{i<7?"BADGE EARNED":"FINAL CHALLENGE"}</small><button className={i<7?"outline-button":"gold-button"} onClick={()=>i<7?notify(g+" — replay challenge selected."):navigate("battle")}>{i<7?"VIEW RECORD":"CHALLENGE LEADER"}</button></div>)}</div></section>}
+
+      {screen==="raids"&&<section className="panel raid-panel"><div className="raid-art"><img src={ART+"384.png"} alt="Rayquaza"/></div><div className="raid-info"><div className="eyebrow">WORLD EVENT · 02H 48M REMAINING</div><h2>SKY-SERPENT<br/>RAYQUAZA</h2><p>A legendary presence has appeared above the ancient ruins. Assemble your strongest team for this limited raid encounter.</p><div className="boss-health"><div><span>BOSS VITALITY</span><b>68% REMAINING</b></div><i><em/></i></div><div className="raid-stats"><span>DIFFICULTY <b>MYTHIC</b></span><span>RECOMMENDED <b>2,800 CP</b></span><span>PARTY <b>3 / 5</b></span></div><button className="gold-button" onClick={()=>notify("Raid lobby joined. Matchmaking will be enabled with multiplayer services.")}>JOIN RAID PARTY <ChevronRight size={16}/></button></div></section>}
+
+      {screen==="friends"&&<section className="panel-stack"><div className="panel friends-toolbar"><div className="search-box"><Search size={16}/><input placeholder="Search trainer by name or ID..." onChange={e=>setSearch(e.target.value)}/></div><button className="gold-button" onClick={()=>notify("Friend invite link copied to your clipboard in the full release.")}><Plus size={15}/> ADD FRIEND</button></div><div className="friends-grid">{["MistyWave","OakResearch","EeveeMaster","VoltRunner","ShadowK"].filter(n=>n.toLowerCase().includes(search.toLowerCase())).map((n,i)=><div className="panel friend-card" key={n}><div className="friend-avatar">{n[0]}</div><div><b>{n}</b><small><i/> {i===3?"IN BATTLE":"ONLINE"} · LVL {42+i*3}</small></div><button className="outline-button" onClick={()=>notify("Challenge invitation prepared for "+n+".")}>CHALLENGE</button></div>)}</div></section>}
+
+      {screen==="guild"&&<section className="panel-stack"><div className="guild-hero"><div><div className="eyebrow">TRAINER ALLIANCE · EST. 2025</div><h2>APEX DRAGONFORGE</h2><p>United by strategy. Defined by victory.</p><div className="guild-meta"><span>RANK #08</span><span>24 / 30 MEMBERS</span><span>1.8M GUILD XP</span></div></div><div className="guild-crest"><Crown size={46}/></div></div><div className="guild-stats">{[["WEEKLY CONTRIBUTION","12,450"],["GUILD WINS","186"],["ACTIVE MEMBERS","21/24"]].map(x=><div className="panel stat-tile" key={x[0]}><small>{x[0]}</small><b>{x[1]}</b></div>)}</div><div className="panel"><div className="section-heading"><h2>GUILD ACTIVITY</h2><span>RECENT</span></div>{["MistyWave contributed 2,500 research points","VoltRunner won a guild battle","OakResearch unlocked Dragon Mastery I"].map(x=><div className="activity-row" key={x}><Activity size={15}/>{x}</div>)}</div></section>}
+
+      {screen==="tech"&&<section className="panel-stack"><div className="panel tech-intro"><div className="eyebrow">SHARED ALLIANCE RESEARCH</div><h2>INVEST IN THE NEXT EVOLUTION</h2><p>Spend guild research points to unlock passive perks for every alliance member.</p><b>AVAILABLE RESEARCH POINTS · 18,400</b></div><div className="tech-grid">{[{n:"Dragon Mastery",d:"+5% Dragon-type move power",cost:"4,000 RP",icon:Flame},{n:"Fortified Resolve",d:"+3% team HP in guild raids",cost:"3,500 RP",icon:Shield},{n:"Rapid Training",d:"+10% trainer XP from battles",cost:"5,000 RP",icon:Zap}].map((x,i)=>{const Icon=x.icon;return <div className="panel tech-card" key={x.n}><Icon size={26}/><h3>{x.n}</h3><p>{x.d}</p><small>{x.cost}</small><button className="gold-button" onClick={()=>notify(x.n+" research contribution queued.")}>CONTRIBUTE</button></div>;})}</div></section>}
+
+      {screen==="profile"&&<section className="profile-layout"><div className="panel profile-hero"><div className="profile-avatar-large">R</div><div><div className="eyebrow">MASTER IV · 3,480 ELO</div><h2>Champion Red_Apex</h2><p>Trainer since Season 01 · Kanto League Champion</p><div className="profile-xp"><i/></div><small>LEVEL 64 · 14,200 / 17,500 XP</small></div></div><div className="profile-stat-grid">{[["TOTAL BATTLES","428"],["VICTORIES","312"],["WIN RATE","72.9%"],["CARDS OWNED",String(owned.length)]].map(x=><div className="panel stat-tile" key={x[0]}><small>{x[0]}</small><b>{x[1]}</b></div>)}</div><div className="panel settings-panel"><h2>GAME PREFERENCES</h2><button onClick={()=>notify("Audio preferences are ready for the settings release.")}>Sound & Music <ChevronRight/></button><button onClick={()=>notify("Graphics preferences are ready for the settings release.")}>Graphics Quality <ChevronRight/></button><button onClick={()=>notify("Account security settings will be connected to authentication.")}>Account & Security <ChevronRight/></button></div></section>}
+    </main>
+
+    {packReveal&&<div className="modal-backdrop" onClick={()=>setPackReveal(false)}><div className="pack-reveal-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setPackReveal(false)}><X/></button><div className="eyebrow">PACK OPENED · NEW DISCOVERIES</div><h2>YOUR CARDS HAVE ARRIVED</h2><p>Five cards have been added to your collection.</p><div className="reveal-grid">{revealed.map((p,i)=><div className="reveal-card" key={p.id+"-"+i}><PokemonArt pokemon={p} size={120}/><b>{p.name}</b><Rarity value={p.rarity}/></div>)}</div><button className="gold-button" onClick={()=>{setPackReveal(false);navigate("collection");}}>VIEW MY COLLECTION <ChevronRight size={15}/></button></div></div>}
+    {toast&&<div className="toast-message"><Check size={15}/>{toast}</div>}
+  </div>;
+}
+
+function Dashboard({team,owned,coins,claimed,onClaim,onNavigate,onToast}:{team:Pokemon[];owned:number;coins:number;claimed:boolean;onClaim:()=>void;onNavigate:(s:Screen)=>void;onToast:(s:string)=>void}) {
+  return <div className="dashboard-grid">
+    <div className="dashboard-main">
+      <section className="hero-banner"><div className="hero-copy"><div className="eyebrow"><span className="live-dot"/> SEASON 04 · APEX EVOLUTION</div><h2>WELCOME BACK,<br/><strong>CHAMPION.</strong></h2><p>Your next legendary moment is waiting. The arena is calling, Trainer.</p><div className="hero-ctas"><button className="gold-button" onClick={()=>onNavigate("battle")}><Swords size={16}/> ENTER THE ARENA</button><button className="outline-button" onClick={()=>onNavigate("team")}>MANAGE SQUAD <ChevronRight size={14}/></button></div><div className="hero-metrics"><span><b>3,480</b><small>TRAINER ELO</small></span><span><b>72.9%</b><small>WIN RATE</small></span><span><b>{owned}</b><small>SPECIES FOUND</small></span></div></div><div className="hero-character"><div className="hero-orbit orbit-one"/><div className="hero-orbit orbit-two"/><img src={ART+"6.png"} alt="Charizard"/></div><div className="hero-corner-label">APEX<br/>CHAMPION</div></section>
+      <div className="quick-actions"><button onClick={()=>onNavigate("battle")}><span className="quick-icon quick-fire"><Swords/></span><span><b>Battle Arena</b><small>Test your strength</small></span><ChevronRight/></button><button onClick={()=>onNavigate("packs")}><span className="quick-icon quick-blue"><PackageOpen/></span><span><b>Open Card Packs</b><small>Discover new cards</small></span><ChevronRight/></button><button onClick={()=>onNavigate("pokedex")}><span className="quick-icon quick-purple"><BookOpen/></span><span><b>Explore Pokédex</b><small>Research 1,025 species</small></span><ChevronRight/></button></div>
+      <section className="panel dashboard-team"><div className="section-heading"><div><h2>YOUR ACTIVE SQUAD</h2><p>Your six selected Pokémon are ready for battle.</p></div><button className="text-action" onClick={()=>onNavigate("team")}>EDIT TEAM <ArrowUpRight size={14}/></button></div><div className="squad-strip">{team.map(p=><button key={p.id} className="squad-mon" onClick={()=>onNavigate("team")}><PokemonArt pokemon={p} size={76}/><b>{p.name}</b><small>{p.type.split(" · ")[0]}</small></button>)}</div></section>
+      <section className="panel recent-cards"><div className="section-heading"><div><h2>RECENTLY DISCOVERED</h2><p>Latest additions to your digital binder.</p></div><button className="text-action" onClick={()=>onNavigate("collection")}>VIEW BINDER <ArrowUpRight size={14}/></button></div><div className="recent-card-row">{roster.slice(0,5).map(p=><button key={p.id} className="recent-card" onClick={()=>onNavigate("collection")}><PokemonArt pokemon={p} size={80}/><span><b>{p.name}</b><small>{p.rarity}</small></span></button>)}</div></section>
+    </div>
+    <aside className="dashboard-aside">
+      <section className="panel trainer-progress"><div className="section-heading"><h2>TRAINER PROGRESS</h2><span>LVL 64</span></div><div className="level-ring"><div><b>64</b><small>LEVEL</small></div></div><div className="xp-copy"><b>14,200 / 17,500 XP</b><span>82% to next level</span></div><div className="xp-track"><i/></div><div className="progress-foot"><span>MASTER IV</span><span>3,480 ELO</span></div></section>
+      <section className="panel daily-panel"><div className="section-heading"><h2>DAILY OBJECTIVES</h2><span>RESET IN 08:42:16</span></div><div className="mission-row"><span className="mission-icon"><Swords/></span><div><b>Win 3 battles</b><small>2 / 3 completed</small><i><em style={{width:"66%"}}/></i></div><strong>+300</strong></div><div className="mission-row"><span className="mission-icon"><BookOpen/></span><div><b>Discover 5 Pokémon</b><small>5 / 5 completed</small><i><em style={{width:"100%"}}/></i></div><strong>+200</strong></div><button className={"claim-button "+(claimed?"claimed":"")} onClick={onClaim} disabled={claimed}>{claimed?<><Check size={14}/> CLAIMED</>:<><Gift size={14}/> CLAIM DAILY REWARD · +500</>}</button></section>
+      <section className="league-promo"><div className="eyebrow">NEXT MILESTONE</div><h3>INDIGO PLATEAU</h3><p>One final gym leader remains before the Champion's challenge.</p><button onClick={()=>onNavigate("gyms")}>VIEW PROGRESSION <ChevronRight size={13}/></button></section>
+      <section className="panel currency-summary"><div><Coins/><span>COIN BALANCE</span><b>{coins.toLocaleString("en-US")}</b></div><button onClick={()=>onNavigate("packs")}>VISIT STORE <ShoppingBag size={13}/></button></section>
+    </aside>
+  </div>;
+}
+
+function PokemonCard({pokemon,onClick}:{pokemon:Pokemon;onClick:()=>void}) {
+  return <button className={"collect-card rarity-border-"+pokemon.rarity.toLowerCase()} onClick={onClick}><div className="collect-card-top"><span>POKÉMON · #{String(pokemon.id).padStart(3,"0")}</span><Rarity value={pokemon.rarity}/></div><div className="collect-art"><div/><PokemonArt pokemon={pokemon} size={150}/></div><div className="collect-info"><b>{pokemon.name}</b><TypeBadge type={pokemon.type}/><div className="collect-stats"><span>HP <strong>{pokemon.hp*2+40}</strong></span><span>POWER <strong>{pokemon.cp.toLocaleString("en-US")}</strong></span></div></div></button>;
+}
+
+function BattleView({active,team,enemyHp,turn,onSelect,onAttack,onReset}:{active:Pokemon;team:Pokemon[];enemyHp:number;turn:number;onSelect:(id:number)=>void;onAttack:(move:string,damage:number)=>void;onReset:()=>void}) {
+  return <div className="battle-page-grid"><div className="panel battle-panel"><div className="battle-topline"><span><i/> PRACTICE MATCH · TURN {turn}</span><button className="outline-button" onClick={onReset}>RESET MATCH</button></div><div className="arena-stage"><div className="combatant combatant-player"><PokemonArt pokemon={active} size={190}/><div className="combatant-label"><b>{active.name}</b><small>LV. 64 · YOUR ACTIVE POKÉMON</small><i><em style={{width:active.hp+"%"}}/></i><small>HP {active.hp}/100</small></div></div><div className="vs-mark">VS</div><div className="combatant combatant-enemy"><div className="combatant-label"><b>Garchomp</b><small>LV. 58 · OPPONENT</small><i><em style={{width:enemyHp+"%"}}/></i><small>HP {enemyHp}/100</small></div><img src={ART+"445.png"} alt="Garchomp"/></div><div className="arena-ground"/></div><div className="battle-command"><div><div className="eyebrow">COMMAND PHASE</div><h3>{enemyHp===0?"OPPONENT DEFEATED":"WHAT WILL "+active.name.toUpperCase()+" DO?"}</h3><p>Choose one action. Damage is applied to the practice opponent.</p></div><div className="move-grid"><button onClick={()=>onAttack("Flamethrower",22)} disabled={enemyHp===0}><Flame/> <span><b>Flamethrower</b><small>FIRE · POWER 90</small></span></button><button onClick={()=>onAttack("Dragon Claw",18)} disabled={enemyHp===0}><Zap/><span><b>Dragon Claw</b><small>DRAGON · POWER 80</small></span></button><button onClick={()=>onAttack("Protect",8)} disabled={enemyHp===0}><Shield/><span><b>Protect</b><small>STATUS · DEFEND</small></span></button><button onClick={()=>onAttack("Quick Attack",12)} disabled={enemyHp===0}><Activity/><span><b>Quick Attack</b><small>NORMAL · PRIORITY</small></span></button></div>{enemyHp===0&&<div className="victory-banner"><Trophy/> PRACTICE VICTORY · +250 COINS</div>}</div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{team.length}/6</span></div>{team.map(p=><button key={p.id} className={"battle-party-row "+(p.id===active.id?"party-active":"")} onClick={()=>onSelect(p.id)}><PokemonArt pokemon={p} size={58}/><span><b>{p.name}</b><small>{p.type}</small></span>{p.id===active.id?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}<div className="battle-log"><b>BATTLE LOG</b><p>Turn {turn}: {enemyHp===0?"Victory! The opposing Pokémon fainted.":"Awaiting your command..."}</p></div></aside></div>;
 }
