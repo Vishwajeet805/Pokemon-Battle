@@ -100,6 +100,7 @@ export default function GameClient() {
   const [dexLoading,setDexLoading]=useState(false);
   const [dexError,setDexError]=useState("");
   const [dexDetail,setDexDetail]=useState<any>(null);
+  const [turn,setTurn]=useState(1);
   const [owned,setOwned]=useState<number[]>([6,25,9,3,94,150,149,130,448,197,384,249]);
   const [packReveal,setPackReveal]=useState(false);
   const [revealed,setRevealed]=useState<Pokemon[]>([]);
