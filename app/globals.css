@@ -117,3 +117,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 @media(max-width:720px){.battle-move-grid{grid-template-columns:1fr 1fr}.battle-result{flex-wrap:wrap}.battle-result .gold-button{margin-left:0}.battle-move{min-height:90px;padding:10px!important}}
 
 .dex-load-more{display:flex;justify-content:center;padding:18px 0 28px}.dex-load-more .outline-button{min-width:280px;letter-spacing:.08em;font:700 9px 'JetBrains Mono';}
+
+/* Evolution Lab */
+.evolution-selected{border-color:#eab65d!important;box-shadow:0 0 0 1px #eab65d55,inset 0 0 24px #eab65d12;}
+.evolution-card{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px;text-align:center;}
+.evolution-card>img{width:116px;height:116px;object-fit:contain;filter:drop-shadow(0 8px 14px #0008);}
+.evolution-card>b{font:700 14px Outfit;color:#f3f6fb;text-transform:capitalize;}
+.evolution-card>small{font:9px "JetBrains Mono";line-height:1.5;color:#aab8cb;text-transform:capitalize;}
+.evolution-card .outline-button,.evolution-card .gold-button{width:100%;min-height:34px;font-size:8px;letter-spacing:.05em;}
+.evolution-card .gold-button:disabled{opacity:.38;cursor:not-allowed;filter:grayscale(1);}
