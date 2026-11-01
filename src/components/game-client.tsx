@@ -18,7 +18,9 @@ const BattleScene = dynamic(() => import("./battle-scene"), {
 
 const ART = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/";
 type Pokemon = { id: number; name: string; type: string; cp: number; hp: number; rarity: string; };
-type Screen = "dashboard" | "pokedex" | "collection" | "evolution" | "team" | "battle" | "packs" | "gyms" | "raids" | "friends" | "guild" | "tech" | "profile";
+type TrainingRecord = { level:number; xp:number };
+const xpForNextLevel=(level:number)=>100+level*40;
+type Screen = "dashboard" | "pokedex" | "collection" | "evolution" | "training" | "team" | "battle" | "packs" | "gyms" | "raids" | "friends" | "guild" | "tech" | "profile";
 
 const roster: Pokemon[] = [
   {id:6,name:"Charizard",type:"Fire · Flying",cp:2840,hp:100,rarity:"Legendary"},
@@ -48,6 +50,7 @@ const navGroups = [
     { id:"pokedex" as Screen, label:"Pokédex", icon:BookOpen, meta:"1,025" },
     { id:"collection" as Screen, label:"Collection", icon:Grid2X2, meta:"BINDER" },
     { id:"evolution" as Screen, label:"Evolution Lab", icon:Sparkles, meta:"EVOLVE" },
+    { id:"training" as Screen, label:"Training Lab", icon:Activity, meta:"XP · LEVELS" },
     { id:"team" as Screen, label:"Team Builder", icon:Users, meta:"6 SLOTS" },
   ]},
   { label: "Gameplay Modes", items: [
@@ -67,6 +70,7 @@ const screenTitles: Record<Screen, { title:string; eyebrow:string; subtitle:stri
   pokedex:{title:"National Pokédex Archive",eyebrow:"Field Research · Generations 1–9",subtitle:"Search Pokémon, inspect their details and discover your next team member."},
   collection:{title:"Your Card Collection",eyebrow:"Personal Binder · Digital Vault",subtitle:"Every discovery tells a story. Inspect, sort and celebrate your collection."},
   evolution:{title:"Evolution Lab",eyebrow:"Pokémon Growth · PokéAPI Evolution Data",subtitle:"Discover each owned Pokémon’s next form, inspect its real evolution requirements and evolve when you have what it needs."},
+  training:{title:"Pokémon Training Lab",eyebrow:"Individual Progression · Experience & Levels",subtitle:"Earn experience in battles, level up each Pokémon individually and unlock level-based evolution requirements."},
   team:{title:"Team Synergy Lab",eyebrow:"Squad Management · 6 Slots",subtitle:"Build a balanced six-Pokémon lineup before entering competitive play."},
   battle:{title:"Battle Arena",eyebrow:"Live Combat · Turn Based",subtitle:"Read the field, choose your move and outplay your opponent."},
   packs:{title:"Booster Pack Foundry",eyebrow:"Card Store · New Drops",subtitle:"Choose a pack, reveal its contents and expand your collection."},
@@ -116,6 +120,27 @@ export default function GameClient() {
   const [evolutionLoading,setEvolutionLoading]=useState(false);
   const [evolutionError,setEvolutionError]=useState("");
   const [evolutionItems,setEvolutionItems]=useState<Record<string,number>>({});
+  const [trainingByPokemon,setTrainingByPokemon]=useState<Record<number,TrainingRecord>>({});
+  const [trainingReady,setTrainingReady]=useState(false);
+
+  useEffect(()=>{try{const saved=window.localStorage.getItem("pokemon-battle-training-v1");if(saved){const parsed=JSON.parse(saved) as Record<number,TrainingRecord>;if(parsed&&typeof parsed==="object")setTrainingByPokemon(parsed);}}catch{ /* Ignore invalid local training data. */ }finally{setTrainingReady(true);}},[]);
+  useEffect(()=>{if(trainingReady)window.localStorage.setItem("pokemon-battle-training-v1",JSON.stringify(trainingByPokemon));},[trainingByPokemon,trainingReady]);
+
+  function getTraining(id:number):TrainingRecord{return trainingByPokemon[id]||{level:5,xp:0};}
+  function awardTrainingXp(ids:number[],amount:number){
+    if(!ids.length)return;
+    const messages:string[]=[];
+    setTrainingByPokemon(old=>{
+      const next={...old};
+      for(const id of ids){let record=next[id]||{level:5,xp:0};let xp=record.xp+amount;let level=record.level;
+        while(level<100&&xp>=xpForNextLevel(level)){xp-=xpForNextLevel(level);level++;messages.push((allPokemon.find(p=>p.id===id)?.name||"Pokémon")+" reached Lv. "+level+"!");}
+        next[id]={level,xp:level===100?0:xp};
+      }
+      return next;
+    });
+    notify("Battle training complete: +"+amount+" XP to "+ids.length+" Pokémon.");
+    if(messages.length)window.setTimeout(()=>notify(messages.join(" ")),500);
+  }
 
   const allPokemon=useMemo(()=>[...roster,...extraPokemon],[extraPokemon]);
   const team=useMemo(()=>selectedTeam.map(id=>allPokemon.find(p=>p.id===id)).filter(Boolean) as Pokemon[],[selectedTeam,allPokemon]);
@@ -209,8 +234,11 @@ export default function GameClient() {
 
   async function evolvePokemon(option:EvolutionOption){
     const requiredItem=option.item||option.heldItem;
-    if(option.trigger!=="use-item"||!requiredItem){notify("This evolution method is not available yet. Item-based evolutions are supported in this update.");return;}
-    if((evolutionItems[requiredItem]||0)<1){notify("You need a "+requiredItem.replace(/-/g," ")+". Buy one in the Evolution Lab first.");return;}
+    const currentTraining=getTraining(option.fromId);
+    const levelEvolution=option.trigger==="level-up";
+    if(levelEvolution&&(!option.minLevel||currentTraining.level<option.minLevel)){notify("This Pokémon needs level "+(option.minLevel||"?")+" to evolve. Keep training in battles.");return;}
+    if(!levelEvolution&&(option.trigger!=="use-item"||!requiredItem)){notify("This evolution method is not available yet. Level-up and item-based evolutions are supported.");return;}
+    if(requiredItem&&!levelEvolution&&(evolutionItems[requiredItem]||0)<1){notify("You need a "+requiredItem.replace(/-/g," ")+". Buy one in the Evolution Lab first.");return;}
     try{
       const response=await fetch("https://pokeapi.co/api/v2/pokemon/"+option.toId);
       if(!response.ok)throw new Error("Could not load evolved Pokémon");
@@ -220,7 +248,8 @@ export default function GameClient() {
       setOwned(old=>Array.from(new Set([...old.filter(id=>id!==option.fromId),evolved.id])));
       setSelectedTeam(old=>old.map(id=>id===option.fromId?evolved.id:id));
       if(activePokemon===option.fromId)setActivePokemon(evolved.id);
-      setEvolutionItems(old=>({...old,[requiredItem]:Math.max(0,(old[requiredItem]||0)-1)}));
+      if(requiredItem&&!levelEvolution)setEvolutionItems(old=>({...old,[requiredItem]:Math.max(0,(old[requiredItem]||0)-1)}));
+      setTrainingByPokemon(old=>({...old,[evolved.id]:{level:currentTraining.level,xp:0}}));
       setEvolutionTarget(evolved.id);
       notify(option.fromName+" evolved into "+evolved.name+"!");
     }catch{notify("Evolution failed because the Pokémon data could not be loaded.");}
@@ -283,6 +312,11 @@ export default function GameClient() {
 
       {screen==="collection"&&<section className="panel-stack"><div className="panel collection-toolbar"><div><b>{owned.length} / 1,025</b><small>DISCOVERED SPECIES</small></div><div className="tab-row">{["All Cards","Rare","Epic","Legendary"].map(t=><button key={t} className={activeTab===t?"tab-active":""} onClick={()=>setActiveTab(t)}>{t}</button>)}</div></div><div className="collectible-grid">{visibleCollection.map(p=><PokemonCard key={p.id} pokemon={p} onClick={()=>{setActivePokemon(p.id);notify(p.name+" selected in your collection.");}}/>)}</div></section>}
 
+      {screen==="training"&&<section className="panel-stack">
+        <div className="panel training-overview"><div><div className="eyebrow">BATTLE-POWERED PROGRESSION</div><h2>EVERY BATTLE MAKES YOUR TEAM STRONGER</h2><p>Each surviving party member earns 180 XP for a victory. Progress is saved in this browser.</p></div><div className="training-stat"><b>{owned.length}</b><small>TRAINABLE SPECIES</small></div></div>
+        <div className="training-grid">{allPokemon.filter(p=>owned.includes(p.id)).map(p=>{const record=getTraining(p.id);const needed=xpForNextLevel(record.level);const progress=record.level>=100?100:Math.min(100,record.xp/needed*100);return <div className="panel training-card" key={p.id}><div className="training-card-top"><span>#{String(p.id).padStart(4,"0")}</span><span>LV. {record.level}</span></div><PokemonArt pokemon={p} size={112}/><b>{p.name}</b><small>{p.type}</small><div className="training-xp-copy"><span>{record.level>=100?"MAX LEVEL":record.xp.toLocaleString()+" / "+needed.toLocaleString()+" XP"}</span><span>{record.level>=100?"100%":Math.floor(progress)+"%"}</span></div><div className="training-xp-track"><i style={{width:progress+"%"}}/></div><small className="training-hint">{record.level>=100?"Training complete": "Win battles to earn XP"}</small></div>;})}</div>
+      </section>}
+
       {screen==="evolution"&&<section className="panel-stack">
         <div className="panel collection-toolbar"><div><b>EVOLUTION ARCHIVE</b><small>LIVE REQUIREMENTS FROM POKÉAPI</small></div><div className="result-count">{owned.length} OWNED SPECIES</div></div>
         <div className="panel" style={{padding:22}}>
@@ -297,17 +331,19 @@ export default function GameClient() {
           <div className="dex-grid">{evolutionOptions.map(option=>{
             const item=option.item||option.heldItem;
             const ownedItem=item?(evolutionItems[item]||0):0;
-            const canEvolve=option.trigger==="use-item"&&!!item&&ownedItem>0;
+            const levelRequirement=option.minLevel||0;
+            const currentLevel=getTraining(option.fromId).level;
+            const canEvolve=option.trigger==="level-up"?levelRequirement>0&&currentLevel>=levelRequirement:option.trigger==="use-item"&&!!item&&ownedItem>0;
             const requirement=[option.minLevel?("Level "+option.minLevel):null,item?("Item: "+item.replace(/-/g," ")):null,option.minHappiness?("Friendship "+option.minHappiness):null,option.timeOfDay?("Time: "+option.timeOfDay):null,option.location?("Location: "+option.location.replace(/-/g," ")):null,option.tradeSpecies?("Trade for: "+option.tradeSpecies.replace(/-/g," ")):null,option.knownMove?("Know move: "+option.knownMove.replace(/-/g," ")):null].filter(Boolean).join(" · ")||option.trigger.replace(/-/g," ");
             return <div className="dex-card evolution-card" key={option.toId+"-"+option.trigger}><span className="dex-number">#{String(option.toId).padStart(4,"0")}</span><img src={ART+option.toId+".png"} alt={option.toName}/><b>{option.toName.replace(/-/g," ")}</b><small>{requirement}</small><span className="dex-owned">{option.trigger.toUpperCase().replace(/-/g," ")}</span>
-              {item?<><small>ITEM BAG: {ownedItem}</small><button className="outline-button" onClick={()=>buyEvolutionItem(item)} disabled={coins<1500}>BUY {item.replace(/-/g," ").toUpperCase()} · 1,500 COINS</button><button className="gold-button" onClick={()=>evolvePokemon(option)} disabled={!canEvolve}>EVOLVE POKÉMON</button></>:<small>{option.trigger==="level-up"?"Level-based evolution needs Pokémon training levels, coming in a later progression update.":"This evolution method (trade/friendship/other) is not yet available."}</small>}
+              {option.trigger==="level-up"?<><small>YOUR LEVEL: {currentLevel} / REQUIRED: {levelRequirement}</small><button className="gold-button" onClick={()=>evolvePokemon(option)} disabled={!canEvolve}>{canEvolve?"EVOLVE POKÉMON":"TRAIN TO LEVEL "+levelRequirement}</button>{!canEvolve&&<small>Earn XP in the Battle Arena to unlock this evolution.</small>}</>:item?<><small>ITEM BAG: {ownedItem}</small><button className="outline-button" onClick={()=>buyEvolutionItem(item)} disabled={coins<1500}>BUY {item.replace(/-/g," ").toUpperCase()} · 1,500 COINS</button><button className="gold-button" onClick={()=>evolvePokemon(option)} disabled={!canEvolve}>EVOLVE POKÉMON</button></>:<small>This evolution method (trade/friendship/other) is not yet available.</small>}
             </div>;
           })}</div>
         </div>
       </section>}
       {screen==="team"&&<section className="team-builder-layout"><div className="panel team-board"><div className="section-heading"><div><h2>ACTIVE SQUAD</h2><p>Select up to six Pokémon for your battle formation.</p></div><span className="team-counter">{selectedTeam.length}/6</span></div><div className="team-slots">{Array.from({length:6}).map((_,i)=>{const p=team[i];return <div className={"team-slot "+(p?"slot-filled":"")} key={i}>{p?<><button className="slot-remove" onClick={()=>toggleTeam(p.id)} aria-label={"Remove "+p.name}><X size={13}/></button><PokemonArt pokemon={p} size={112}/><b>{p.name}</b><small>{p.type}</small><Rarity value={p.rarity}/></>:<><Plus size={22}/><b>EMPTY SLOT</b><small>Choose a Pokémon</small></>}</div>;})}</div><div className="team-footer"><div><small>TEAM POWER</small><b>{team.reduce((n,p)=>n+p.cp,0).toLocaleString("en-US")} CP</b></div><button className="gold-button" disabled={selectedTeam.length!==6} onClick={()=>notify("Six-Pokémon lineup saved for this session.")}><Check size={15}/> SAVE TEAM</button></div></div><div className="panel roster-panel"><div className="section-heading"><div><h2>AVAILABLE POKÉMON</h2><p>Choose from your discovered roster.</p></div><span>{roster.length} SPECIES</span></div><div className="mini-roster">{roster.map(p=><button key={p.id} className={"mini-mon "+(selectedTeam.includes(p.id)?"mini-selected":"")} onClick={()=>toggleTeam(p.id)}><PokemonArt pokemon={p} size={56}/><span><b>{p.name}</b><small>{p.type}</small></span>{selectedTeam.includes(p.id)?<Check size={16}/>:<Plus size={16}/>}</button>)}</div></div></section>}
 
-      {screen==="battle"&&<BattleView key={screen} active={active} team={team} onSelect={setActivePokemon} onReward={()=>{setCoins(v=>v+250);notify("Victory reward claimed: +250 coins.");}}/>}
+      {screen==="battle"&&<BattleView key={screen} active={active} team={team} onSelect={setActivePokemon} onReward={(ids)=>{setCoins(v=>v+250);notify("Victory reward claimed: +250 coins.");awardTrainingXp(ids,180);}}/>}
 
       {screen==="packs"&&<section className="panel-stack"><div className="pack-feature"><div><div className="eyebrow">FEATURED DROP · LIMITED TIME</div><h2>PRIMAL APEX SUMMON</h2><p>Five cards. One chance at a legendary pull. Add fresh discoveries to your binder.</p><div className="pack-meta"><span><Star size={14}/> RARE · EPIC · LEGENDARY</span><span><PackageOpen size={14}/> 5 CARDS</span></div><button className="gold-button" onClick={()=>openPack("Primal Apex Summon")}><PackageOpen size={16}/> OPEN PACK · 1,200 COINS</button></div><div className="pack-art"><div className="pack-glow"/><div className="pack-card"><Sparkles size={38}/><b>PRIMAL<br/>APEX</b><small>COLLECTOR SERIES</small></div></div></div><div className="section-heading"><div><h2>AVAILABLE PACKS</h2><p>Choose a booster to expand your collection.</p></div></div><div className="pack-grid">{["Primal Apex","Kanto Origins","Elemental Clash"].map((p,i)=><div className="panel pack-tile" key={p}><div className={"pack-mini pack-mini-"+i}><PackageOpen size={28}/></div><b>{p}</b><small>5 CARDS · GUARANTEED RARE</small><button className="outline-button" onClick={()=>openPack(p)}>OPEN · 1,200 <Coins size={13}/></button></div>)}</div></section>}
 
@@ -350,7 +386,7 @@ function PokemonCard({pokemon,onClick}:{pokemon:Pokemon;onClick:()=>void}) {
   return <button className={"collect-card rarity-border-"+pokemon.rarity.toLowerCase()} onClick={onClick}><div className="collect-card-top"><span>POKÉMON · #{String(pokemon.id).padStart(3,"0")}</span><Rarity value={pokemon.rarity}/></div><div className="collect-art"><div/><PokemonArt pokemon={pokemon} size={150}/></div><div className="collect-info"><b>{pokemon.name}</b><TypeBadge type={pokemon.type}/><div className="collect-stats"><span>HP <strong>{pokemon.hp*2+40}</strong></span><span>POWER <strong>{pokemon.cp.toLocaleString("en-US")}</strong></span></div></div></button>;
 }
 
-function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon[];onSelect:(id:number)=>void;onReward:()=>void}) {
+function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon[];onSelect:(id:number)=>void;onReward:(pokemonIds:number[])=>void}) {
  const [party,setParty]=useState<BattlePokemon[]>(()=> (team.length?team:[active]).map(createBattlePokemon));
  const [enemy,setEnemy]=useState<BattlePokemon>(createOpponent);
  const [activeId,setActiveId]=useState(active.id);
@@ -371,7 +407,7 @@ function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon
    .finally(()=>{if(!cancelled)setMovesLoading(false);});
   return()=>{cancelled=true;};
  },[activeId]);
- useEffect(()=>{if(status==="victory"&&!rewarded.current){rewarded.current=true;onReward();}},[status,onReward]);
+ useEffect(()=>{if(status==="victory"&&!rewarded.current){rewarded.current=true;onReward(party.filter(p=>!p.fainted).map(p=>p.id));}},[status,onReward,party]);
  const log=(lines:string[])=>setLogs(old=>[...lines,...old].slice(0,7));
  const reset=()=>{setParty((team.length?team:[active]).map(createBattlePokemon));setEnemy(createOpponent());setActiveId(active.id);setTurn(1);setLogs(["A wild Mewtwo challenges your team! Choose your first move."]);setStatus("active");setAttackKey(0);setLastEffect("Battle restarted");rewarded.current=false;};
  const doDamage=(attacker:BattlePokemon,defender:BattlePokemon,move:BattleMove,lines:string[])=>{
