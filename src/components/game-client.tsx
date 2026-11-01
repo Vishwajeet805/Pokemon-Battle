@@ -5,9 +5,9 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity, Bell, BookOpen, Check, ChevronDown, ChevronRight, Coins, Crown,
-  Dumbbell, Flame, Gem, Gift, Grid2X2, Heart, Home, Menu, PackageOpen,
+  Flame, Gem, Gift, Grid2X2, Home, Menu, PackageOpen,
   Search, Settings, Shield, ShoppingBag, Sparkles, Swords, Trophy, Users,
-  X, Zap, Plus, Star, Filter, ArrowUpRight, Lock, Clock3, Target
+  X, Zap, Plus, Star, ArrowUpRight, Lock
 } from "lucide-react";
 
 const BattleScene = dynamic(() => import("./battle-scene"), {
@@ -93,7 +93,7 @@ export default function GameClient() {
   const [selectedTeam,setSelectedTeam]=useState<number[]>([6,9,3,94,150,448]);
   const [activePokemon,setActivePokemon]=useState(6);
   const [search,setSearch]=useState("");
-  const [typeFilter,setTypeFilter]=useState("All Types");
+  const [typeFilter,setTypeFilter]=useState("All Pokémon");
   const [pokedex,setPokedex]=useState<{id:number;name:string}[]>([]);
   const [dexLoaded,setDexLoaded]=useState(false);
   const [dexLoading,setDexLoading]=useState(false);
@@ -177,7 +177,7 @@ export default function GameClient() {
   }
 
   const visibleDex=(pokedex.length?pokedex:roster.map(p=>({id:p.id,name:p.name.toLowerCase()})))
-    .filter(p=>p.name.includes(search.toLowerCase().trim()))
+    .filter(p=>p.name.includes(search.toLowerCase().trim()) || String(p.id).includes(search.trim()))
     .slice(0,72);
   const visibleCollection=roster.filter(p=>owned.includes(p.id) && (activeTab==="All Cards" || (activeTab==="Legendary" ? ["Legendary","Mythical"].includes(p.rarity) : p.rarity===activeTab)));
 
@@ -215,7 +215,7 @@ export default function GameClient() {
 
       {screen==="dashboard" && <Dashboard team={team} owned={owned.length} coins={coins} claimed={claimed} onClaim={()=>{if(!claimed){setCoins(v=>v+500);setClaimed(true);notify("Daily reward claimed: +500 coins.");}}} onNavigate={navigate} onToast={notify}/>}
       {screen==="pokedex" && <section className="panel-stack">
-        <div className="panel toolbar-panel"><div className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Pokémon name or number..."/></div><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option>All Types</option><option>Owned</option><option>Unowned</option></select><span className="result-count">{pokedex.length? "1,025": "Featured"} ENTRIES</span></div>
+        <div className="panel toolbar-panel"><div className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Pokémon name or number..."/></div><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option>All Pokémon</option><option>Owned</option><option>Unowned</option></select><span className="result-count">{pokedex.length? "1,025": "Featured"} ENTRIES</span></div>
         {dexLoading&&<div className="panel loading-panel"><Sparkles className="spin-icon"/> Connecting to PokéAPI and loading the National Pokédex...</div>}
         {dexError&&<div className="panel error-panel">{dexError}<button className="outline-button" onClick={()=>{setDexLoaded(false);setDexError("");}}>Retry</button></div>}
         <div className="dex-grid">{visibleDex.map(p=>{
@@ -277,5 +277,5 @@ function PokemonCard({pokemon,onClick}:{pokemon:Pokemon;onClick:()=>void}) {
 }
 
 function BattleView({active,team,enemyHp,turn,onSelect,onAttack,onReset}:{active:Pokemon;team:Pokemon[];enemyHp:number;turn:number;onSelect:(id:number)=>void;onAttack:(move:string,damage:number)=>void;onReset:()=>void}) {
-  return <div className="battle-page-grid"><div className="panel battle-panel"><div className="battle-topline"><span><i/> PRACTICE MATCH · TURN {turn}</span><button className="outline-button" onClick={onReset}>RESET MATCH</button></div><div className="arena-stage"><div className="combatant combatant-player"><PokemonArt pokemon={active} size={190}/><div className="combatant-label"><b>{active.name}</b><small>LV. 64 · YOUR ACTIVE POKÉMON</small><i><em style={{width:active.hp+"%"}}/></i><small>HP {active.hp}/100</small></div></div><div className="vs-mark">VS</div><div className="combatant combatant-enemy"><div className="combatant-label"><b>Garchomp</b><small>LV. 58 · OPPONENT</small><i><em style={{width:enemyHp+"%"}}/></i><small>HP {enemyHp}/100</small></div><img src={ART+"445.png"} alt="Garchomp"/></div><div className="arena-ground"/></div><div className="battle-command"><div><div className="eyebrow">COMMAND PHASE</div><h3>{enemyHp===0?"OPPONENT DEFEATED":"WHAT WILL "+active.name.toUpperCase()+" DO?"}</h3><p>Choose one action. Damage is applied to the practice opponent.</p></div><div className="move-grid"><button onClick={()=>onAttack("Flamethrower",22)} disabled={enemyHp===0}><Flame/> <span><b>Flamethrower</b><small>FIRE · POWER 90</small></span></button><button onClick={()=>onAttack("Dragon Claw",18)} disabled={enemyHp===0}><Zap/><span><b>Dragon Claw</b><small>DRAGON · POWER 80</small></span></button><button onClick={()=>onAttack("Protect",8)} disabled={enemyHp===0}><Shield/><span><b>Protect</b><small>STATUS · DEFEND</small></span></button><button onClick={()=>onAttack("Quick Attack",12)} disabled={enemyHp===0}><Activity/><span><b>Quick Attack</b><small>NORMAL · PRIORITY</small></span></button></div>{enemyHp===0&&<div className="victory-banner"><Trophy/> PRACTICE VICTORY · +250 COINS</div>}</div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{team.length}/6</span></div>{team.map(p=><button key={p.id} className={"battle-party-row "+(p.id===active.id?"party-active":"")} onClick={()=>onSelect(p.id)}><PokemonArt pokemon={p} size={58}/><span><b>{p.name}</b><small>{p.type}</small></span>{p.id===active.id?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}<div className="battle-log"><b>BATTLE LOG</b><p>Turn {turn}: {enemyHp===0?"Victory! The opposing Pokémon fainted.":"Awaiting your command..."}</p></div></aside></div>;
+  return <div className="battle-page-grid"><div className="panel battle-panel"><div className="battle-topline"><span><i/> PRACTICE MATCH · TURN {turn}</span><button className="outline-button" onClick={onReset}>RESET MATCH</button></div><div className="arena-stage"><div className="battle-scene-canvas"><BattleScene/></div><div className="combatant combatant-player"><PokemonArt pokemon={active} size={190}/><div className="combatant-label"><b>{active.name}</b><small>LV. 64 · YOUR ACTIVE POKÉMON</small><i><em style={{width:active.hp+"%"}}/></i><small>HP {active.hp}/100</small></div></div><div className="vs-mark">VS</div><div className="combatant combatant-enemy"><div className="combatant-label"><b>Garchomp</b><small>LV. 58 · OPPONENT</small><i><em style={{width:enemyHp+"%"}}/></i><small>HP {enemyHp}/100</small></div><img src={ART+"445.png"} alt="Garchomp"/></div><div className="arena-ground"/></div><div className="battle-command"><div><div className="eyebrow">COMMAND PHASE</div><h3>{enemyHp===0?"OPPONENT DEFEATED":"WHAT WILL "+active.name.toUpperCase()+" DO?"}</h3><p>Choose one action. Damage is applied to the practice opponent.</p></div><div className="move-grid"><button onClick={()=>onAttack("Flamethrower",22)} disabled={enemyHp===0}><Flame/> <span><b>Flamethrower</b><small>FIRE · POWER 90</small></span></button><button onClick={()=>onAttack("Dragon Claw",18)} disabled={enemyHp===0}><Zap/><span><b>Dragon Claw</b><small>DRAGON · POWER 80</small></span></button><button onClick={()=>onAttack("Protect",8)} disabled={enemyHp===0}><Shield/><span><b>Protect</b><small>STATUS · DEFEND</small></span></button><button onClick={()=>onAttack("Quick Attack",12)} disabled={enemyHp===0}><Activity/><span><b>Quick Attack</b><small>NORMAL · PRIORITY</small></span></button></div>{enemyHp===0&&<div className="victory-banner"><Trophy/> PRACTICE VICTORY · +250 COINS</div>}</div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{team.length}/6</span></div>{team.map(p=><button key={p.id} className={"battle-party-row "+(p.id===active.id?"party-active":"")} onClick={()=>onSelect(p.id)}><PokemonArt pokemon={p} size={58}/><span><b>{p.name}</b><small>{p.type}</small></span>{p.id===active.id?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}<div className="battle-log"><b>BATTLE LOG</b><p>Turn {turn}: {enemyHp===0?"Victory! The opposing Pokémon fainted.":"Awaiting your command..."}</p></div></aside></div>;
 }
