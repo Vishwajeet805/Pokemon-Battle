@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { calculateDamage, chooseOpponentMove, createBattlePokemon, createOpponent, effectivenessLabel, type BattleMove, type BattlePokemon } from "./battle-engine";
 import {
   Activity, Bell, BookOpen, Check, ChevronDown, ChevronRight, Coins, Crown,
   Flame, Gem, Gift, Grid2X2, Home, Menu, PackageOpen,
@@ -99,8 +100,6 @@ export default function GameClient() {
   const [dexLoading,setDexLoading]=useState(false);
   const [dexError,setDexError]=useState("");
   const [dexDetail,setDexDetail]=useState<any>(null);
-  const [enemyHp,setEnemyHp]=useState(100);
-  const [turn,setTurn]=useState(1);
   const [owned,setOwned]=useState<number[]>([6,25,9,3,94,150,149,130,448,197,384,249]);
   const [packReveal,setPackReveal]=useState(false);
   const [revealed,setRevealed]=useState<Pokemon[]>([]);
@@ -119,7 +118,6 @@ export default function GameClient() {
     setScreen(next);
     setMobileNav(false);
     setSearch("");
-    if(next==="battle") setEnemyHp(100);
   }
   function toggleTeam(id:number) {
     setSelectedTeam(old=>{
@@ -128,14 +126,7 @@ export default function GameClient() {
       return [...old,id];
     });
   }
-  function attack(move:string,damage:number) {
-    if(enemyHp<=0) return;
-    const next=Math.max(0,enemyHp-damage);
-    setEnemyHp(next);
-    setTurn(v=>v+1);
-    notify(next===0 ? "Victory! Garchomp has been defeated." : active.name+" used "+move+" — "+damage+" damage dealt.");
-    if(next===0) setCoins(v=>v+250);
-  }
+
   function openPack(packName:string) {
     if(coins<1200) { notify("Not enough coins for this pack."); return; }
     setCoins(v=>v-1200);
@@ -233,7 +224,7 @@ export default function GameClient() {
 
       {screen==="team"&&<section className="team-builder-layout"><div className="panel team-board"><div className="section-heading"><div><h2>ACTIVE SQUAD</h2><p>Select up to six Pokémon for your battle formation.</p></div><span className="team-counter">{selectedTeam.length}/6</span></div><div className="team-slots">{Array.from({length:6}).map((_,i)=>{const p=team[i];return <div className={"team-slot "+(p?"slot-filled":"")} key={i}>{p?<><button className="slot-remove" onClick={()=>toggleTeam(p.id)} aria-label={"Remove "+p.name}><X size={13}/></button><PokemonArt pokemon={p} size={112}/><b>{p.name}</b><small>{p.type}</small><Rarity value={p.rarity}/></>:<><Plus size={22}/><b>EMPTY SLOT</b><small>Choose a Pokémon</small></>}</div>;})}</div><div className="team-footer"><div><small>TEAM POWER</small><b>{team.reduce((n,p)=>n+p.cp,0).toLocaleString("en-US")} CP</b></div><button className="gold-button" disabled={selectedTeam.length!==6} onClick={()=>notify("Six-Pokémon lineup saved for this session.")}><Check size={15}/> SAVE TEAM</button></div></div><div className="panel roster-panel"><div className="section-heading"><div><h2>AVAILABLE POKÉMON</h2><p>Choose from your discovered roster.</p></div><span>{roster.length} SPECIES</span></div><div className="mini-roster">{roster.map(p=><button key={p.id} className={"mini-mon "+(selectedTeam.includes(p.id)?"mini-selected":"")} onClick={()=>toggleTeam(p.id)}><PokemonArt pokemon={p} size={56}/><span><b>{p.name}</b><small>{p.type}</small></span>{selectedTeam.includes(p.id)?<Check size={16}/>:<Plus size={16}/>}</button>)}</div></div></section>}
 
-      {screen==="battle"&&<BattleView active={active} team={team} enemyHp={enemyHp} turn={turn} onSelect={setActivePokemon} onAttack={attack} onReset={()=>{setEnemyHp(100);setTurn(1);notify("Practice battle reset.");}}/>}
+      {screen==="battle"&&<BattleView key={screen} active={active} team={team} onSelect={setActivePokemon} onReward={()=>{setCoins(v=>v+250);notify("Victory reward claimed: +250 coins.");}}/>}
 
       {screen==="packs"&&<section className="panel-stack"><div className="pack-feature"><div><div className="eyebrow">FEATURED DROP · LIMITED TIME</div><h2>PRIMAL APEX SUMMON</h2><p>Five cards. One chance at a legendary pull. Add fresh discoveries to your binder.</p><div className="pack-meta"><span><Star size={14}/> RARE · EPIC · LEGENDARY</span><span><PackageOpen size={14}/> 5 CARDS</span></div><button className="gold-button" onClick={()=>openPack("Primal Apex Summon")}><PackageOpen size={16}/> OPEN PACK · 1,200 COINS</button></div><div className="pack-art"><div className="pack-glow"/><div className="pack-card"><Sparkles size={38}/><b>PRIMAL<br/>APEX</b><small>COLLECTOR SERIES</small></div></div></div><div className="section-heading"><div><h2>AVAILABLE PACKS</h2><p>Choose a booster to expand your collection.</p></div></div><div className="pack-grid">{["Primal Apex","Kanto Origins","Elemental Clash"].map((p,i)=><div className="panel pack-tile" key={p}><div className={"pack-mini pack-mini-"+i}><PackageOpen size={28}/></div><b>{p}</b><small>5 CARDS · GUARANTEED RARE</small><button className="outline-button" onClick={()=>openPack(p)}>OPEN · 1,200 <Coins size={13}/></button></div>)}</div></section>}
 
@@ -276,13 +267,64 @@ function PokemonCard({pokemon,onClick}:{pokemon:Pokemon;onClick:()=>void}) {
   return <button className={"collect-card rarity-border-"+pokemon.rarity.toLowerCase()} onClick={onClick}><div className="collect-card-top"><span>POKÉMON · #{String(pokemon.id).padStart(3,"0")}</span><Rarity value={pokemon.rarity}/></div><div className="collect-art"><div/><PokemonArt pokemon={pokemon} size={150}/></div><div className="collect-info"><b>{pokemon.name}</b><TypeBadge type={pokemon.type}/><div className="collect-stats"><span>HP <strong>{pokemon.hp*2+40}</strong></span><span>POWER <strong>{pokemon.cp.toLocaleString("en-US")}</strong></span></div></div></button>;
 }
 
-function BattleView({active,team,enemyHp,turn,onSelect,onAttack,onReset}:{active:Pokemon;team:Pokemon[];enemyHp:number;turn:number;onSelect:(id:number)=>void;onAttack:(move:string,damage:number)=>void;onReset:()=>void}) {
-  const [attackKey,setAttackKey]=useState(0);
-  const [attackType,setAttackType]=useState("Fire");
-  const triggerAttack=(move:string,damage:number,type:string)=>{
-    setAttackType(type);
-    setAttackKey(key=>key+1);
-    onAttack(move,damage);
-  };
-  return <div className="battle-page-grid"><div className="panel battle-panel"><div className="battle-topline"><span><i/> PRACTICE MATCH · TURN {turn}</span><button className="outline-button" onClick={()=>{setAttackKey(0);onReset();}}>RESET MATCH</button></div><div className="arena-stage"><div className="battle-scene-canvas"><BattleScene attackKey={attackKey} attackType={attackType}/></div><div className="combatant combatant-player"><div className="combatant-label"><b>{active.name}</b><small>LV. 64 · YOUR ACTIVE POKÉMON</small><i><em style={{width:active.hp+"%"}}/></i><small>HP {active.hp}/100</small></div></div><div className="vs-mark">VS</div><div className="combatant combatant-enemy"><div className="combatant-label"><b>Mewtwo</b><small>LV. 58 · OPPONENT</small><i><em style={{width:enemyHp+"%"}}/></i><small>HP {enemyHp}/100</small></div></div><div className="arena-ground"/></div><div className="battle-command"><div><div className="eyebrow">COMMAND PHASE</div><h3>{enemyHp===0?"OPPONENT DEFEATED":"WHAT WILL "+active.name.toUpperCase()+" DO?"}</h3><p>Choose one action. Damage is applied to the practice opponent.</p></div><div className="move-grid"><button onClick={()=>triggerAttack("Flamethrower",22,"Fire")} disabled={enemyHp===0}><Flame/> <span><b>Flamethrower</b><small>FIRE · POWER 90</small></span></button><button onClick={()=>triggerAttack("Dragon Claw",18,"Dragon")} disabled={enemyHp===0}><Zap/><span><b>Dragon Claw</b><small>DRAGON · POWER 80</small></span></button><button onClick={()=>triggerAttack("Protect",8,"Psychic")} disabled={enemyHp===0}><Shield/><span><b>Protect</b><small>STATUS · DEFEND</small></span></button><button onClick={()=>triggerAttack("Quick Attack",12,"Normal")} disabled={enemyHp===0}><Activity/><span><b>Quick Attack</b><small>NORMAL · PRIORITY</small></span></button></div>{enemyHp===0&&<div className="victory-banner"><Trophy/> PRACTICE VICTORY · +250 COINS</div>}</div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{team.length}/6</span></div>{team.map(p=><button key={p.id} className={"battle-party-row "+(p.id===active.id?"party-active":"")} onClick={()=>onSelect(p.id)}><PokemonArt pokemon={p} size={58}/><span><b>{p.name}</b><small>{p.type}</small></span>{p.id===active.id?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}<div className="battle-log"><b>BATTLE LOG</b><p>Turn {turn}: {enemyHp===0?"Victory! The opposing Pokémon fainted.":"Awaiting your command..."}</p></div></aside></div>;
+function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon[];onSelect:(id:number)=>void;onReward:()=>void}) {
+ const [party,setParty]=useState<BattlePokemon[]>(()=> (team.length?team:[active]).map(createBattlePokemon));
+ const [enemy,setEnemy]=useState<BattlePokemon>(createOpponent);
+ const [activeId,setActiveId]=useState(active.id);
+ const [turn,setTurn]=useState(1);
+ const [logs,setLogs]=useState(["A wild Mewtwo challenges your team! Choose your first move."]);
+ const [status,setStatus]=useState<"active"|"victory"|"defeat">("active");
+ const [attackKey,setAttackKey]=useState(0),[attackType,setAttackType]=useState("Fire"),[lastEffect,setLastEffect]=useState("Battle started");
+ const rewarded=useRef(false);
+ const current=party.find(p=>p.id===activeId&&!p.fainted)||party.find(p=>!p.fainted);
+ useEffect(()=>{if(status==="victory"&&!rewarded.current){rewarded.current=true;onReward();}},[status,onReward]);
+ const log=(lines:string[])=>setLogs(old=>[...lines,...old].slice(0,7));
+ const reset=()=>{setParty((team.length?team:[active]).map(createBattlePokemon));setEnemy(createOpponent());setActiveId(active.id);setTurn(1);setLogs(["A wild Mewtwo challenges your team! Choose your first move."]);setStatus("active");setAttackKey(0);setLastEffect("Battle restarted");rewarded.current=false;};
+ const doDamage=(attacker:BattlePokemon,defender:BattlePokemon,move:BattleMove,lines:string[])=>{
+  if(move.category==="status"&&move.name==="Protect"){defender.protected=true;lines.push(attacker.name+" used Protect! The next hit is reduced.");return;}
+  if(Math.random()*100>move.accuracy){lines.push(attacker.name+" used "+move.name+", but missed!");return;}
+  const result=calculateDamage(attacker,defender,move),damage=defender.protected?Math.floor(result.damage*.25):result.damage;
+  defender.protected=false;defender.hp=Math.max(0,defender.hp-damage);lines.push(attacker.name+" used "+move.name+" — "+damage+" damage. "+effectivenessLabel(result.effectiveness)+".");
+  if(!defender.hp){defender.fainted=true;lines.push(defender.name+" fainted!");}
+ };
+ const runMove=(index:number)=>{
+  if(status!=="active"||!current)return;
+  const nextParty=party.map(p=>({...p,moves:p.moves.map(m=>({...m}))})),player=nextParty.find(p=>p.id===current.id)!;
+  const foe={...enemy,moves:enemy.moves.map(m=>({...m}))},move=player.moves[index],lines:string[]=[];
+  if(!move||move.pp<=0)return;move.pp--;setAttackType(move.type);setAttackKey(k=>k+1);
+  const playerFirst=(move.priority||0)>0||player.speed>=foe.speed;
+  if(playerFirst)doDamage(player,foe,move,lines);
+  if(!foe.fainted){
+   const target=playerFirst?player:player;
+   if(!target.fainted){const ai=chooseOpponentMove(foe,target);if(ai){ai.pp=Math.max(0,ai.pp-1);setAttackType(ai.type);setAttackKey(k=>k+1);doDamage(foe,target,ai,lines);}}
+  }
+  if(!playerFirst&&!player.fainted&&!foe.fainted)doDamage(player,foe,move,lines);
+  let nextActive=player;
+  if(player.fainted){const replacement=nextParty.find(p=>!p.fainted);if(replacement){nextActive=replacement;setActiveId(replacement.id);onSelect(replacement.id);lines.push("Go, "+replacement.name+"!");}}
+  setParty(nextParty);setEnemy(foe);setTurn(t=>t+1);log(lines);
+  if(foe.fainted){setStatus("victory");setLastEffect("Opponent defeated · +250 coins");}
+  else if(nextParty.every(p=>p.fainted)){setStatus("defeat");setLastEffect("Your entire party has fainted");}
+  else setLastEffect(lines[lines.length-1]||"Turn complete");
+ };
+ const switchPokemon=(id:number)=>{
+  if(status!=="active"||id===activeId)return;
+  const nextParty=party.map(p=>({...p,moves:p.moves.map(m=>({...m}))})),next=nextParty.find(p=>p.id===id),foe={...enemy,moves:enemy.moves.map(m=>({...m}))};
+  if(!next||next.fainted)return;setActiveId(id);onSelect(id);
+  const lines=["Go, "+next.name+"!"];
+  const ai=chooseOpponentMove(foe,next);if(ai){ai.pp=Math.max(0,ai.pp-1);setAttackType(ai.type);setAttackKey(k=>k+1);doDamage(foe,next,ai,lines);}
+  setParty(nextParty);setEnemy(foe);setTurn(t=>t+1);log(lines);
+  if(nextParty.every(p=>p.fainted))setStatus("defeat");
+ };
+ const percent=(p:BattlePokemon)=>Math.max(0,p.hp/p.maxHp*100);
+ return <div className="battle-page-grid"><div className="panel battle-panel">
+  <div className="battle-topline"><span><i/> TURN-BASED PRACTICE · TURN {turn}</span><button className="outline-button" onClick={reset}>RESET MATCH</button></div>
+  <div className="arena-stage"><div className="battle-scene-canvas"><BattleScene attackKey={attackKey} attackType={attackType}/></div>
+   <div className="combatant combatant-player"><div className="combatant-label"><b>{current?.name||"No Pokémon"}</b><small>YOUR ACTIVE POKÉMON · {current?.type||"—"}</small><i><em style={{width:(current?percent(current):0)+"%"}}/></i><small>HP {current?.hp||0}/{current?.maxHp||0}</small></div></div><div className="vs-mark">VS</div>
+   <div className="combatant combatant-enemy"><div className="combatant-label"><b>{enemy.name}</b><small>LV. 58 · OPPONENT · {enemy.type}</small><i><em style={{width:percent(enemy)+"%"}}/></i><small>HP {enemy.hp}/{enemy.maxHp}</small></div></div><div className="arena-ground"/></div>
+  <div className="battle-command"><div><div className="eyebrow">COMMAND PHASE · {status.toUpperCase()}</div><h3>{status==="victory"?"OPPONENT DEFEATED":status==="defeat"?"YOUR PARTY FAINTED":"WHAT WILL "+(current?.name||"YOUR POKÉMON").toUpperCase()+" DO?"}</h3><p>{lastEffect}</p></div>
+   {status==="active"&&current&&<div className="move-grid battle-move-grid">{current.moves.map((m,i)=><button key={m.name} onClick={()=>runMove(i)} disabled={!m.pp} className={"battle-move battle-type-"+m.type}><span className="battle-move-type">{m.type.toUpperCase()}</span><b>{m.name}</b><small>{m.category.toUpperCase()} · POWER {m.power||"—"}</small><small>PP {m.pp}/{m.maxPp}</small></button>)}</div>}
+   {status!=="active"&&<div className={"battle-result "+(status==="victory"?"result-win":"result-loss")}><Trophy size={19}/><b>{status==="victory"?"VICTORY · +250 COINS":"DEFEAT · TRAIN AGAIN"}</b><button className="gold-button" onClick={reset}>BATTLE AGAIN</button></div>}
+  </div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{party.filter(p=>!p.fainted).length}/{party.length} READY</span></div>
+  {party.map(p=><button key={p.id} className={"battle-party-row "+(p.id===activeId?"party-active":"")+(p.fainted?" party-fainted":"")} onClick={()=>switchPokemon(p.id)} disabled={p.fainted||status!=="active"}><PokemonArt pokemon={team.find(t=>t.id===p.id)||active} size={52}/><span><b>{p.name}</b><small>{p.fainted?"FAINTED":p.hp+"/"+p.maxHp+" HP"}</small><i className="party-hp-track"><em style={{width:percent(p)+"%"}}/></i></span>{p.id===activeId?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}
+  <div className="battle-log"><b>BATTLE LOG</b>{logs.map((line,i)=><p key={i} className={i===0?"log-latest":""}>{line}</p>)}</div></aside></div>;
 }
