@@ -126,3 +126,24 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .evolution-card>small{font:9px "JetBrains Mono";line-height:1.5;color:#aab8cb;text-transform:capitalize;}
 .evolution-card .outline-button,.evolution-card .gold-button{width:100%;min-height:34px;font-size:8px;letter-spacing:.05em;}
 .evolution-card .gold-button:disabled{opacity:.38;cursor:not-allowed;filter:grayscale(1);}
+
+
+/* Individual Pokémon training and level progression */
+.training-overview{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 25px;border:1px solid #38bdf844;background:radial-gradient(circle at 85% 50%,#1d5c7833,transparent 35%),#151f30;}
+.training-overview h2{margin:8px 0;font:800 22px Outfit;color:#f2f5fb;}
+.training-overview p{max-width:650px;margin:0;color:#9eacc0;font-size:10px;line-height:1.6;}
+.training-stat{min-width:105px;text-align:center;padding:12px;border:1px solid #38bdf855;border-radius:7px;background:#102538;}
+.training-stat b{display:block;color:#7dd3fc;font:800 28px Outfit;}
+.training-stat small,.training-card-top,.training-xp-copy{font:700 8px "JetBrains Mono";color:#91a3ba;letter-spacing:.06em;}
+.training-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+.training-card{display:flex;flex-direction:column;align-items:center;gap:7px;padding:14px;text-align:center;}
+.training-card-top{width:100%;display:flex;justify-content:space-between;color:#f2c879;}
+.training-card>img{width:112px;height:112px;object-fit:contain;filter:drop-shadow(0 7px 13px #0008);}
+.training-card>b{font:700 14px Outfit;color:#f3f6fb;}
+.training-card>small{font-size:8px;color:#9baac0;}
+.training-xp-copy{width:100%;display:flex;justify-content:space-between;margin-top:5px;font-size:7px;}
+.training-xp-track{width:100%;height:7px;overflow:hidden;border-radius:8px;background:#344256;}
+.training-xp-track i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#0ea5e9,#a78bfa,#fbbf24);transition:width .3s;}
+.training-card .training-hint{color:#6fc8ee;}
+@media(max-width:980px){.training-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:720px){.training-overview{align-items:flex-start;flex-direction:column;padding:17px;}.training-overview h2{font-size:17px;}.training-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}.training-card{padding:10px;}.training-card>img{width:90px;height:90px;}}
