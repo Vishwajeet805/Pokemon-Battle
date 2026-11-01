@@ -32,3 +32,18 @@ export function createOpponent(){return createBattlePokemon({id:150,name:"Mewtwo
 export function calculateDamage(a:BattlePokemon,d:BattlePokemon,m:BattleMove){if(m.category==="status"||m.power<=0)return{damage:0,effectiveness:1,stab:false};const effectiveness=getTypeEffectiveness(m.type,d.type.split(" · ")),stab=a.type.toLowerCase().split(" · ").includes(m.type.toLowerCase()),random=.92+Math.random()*.08,damage=effectiveness===0?0:Math.max(1,Math.floor(m.power*(.55+a.cp/4200)*(stab?1.5:1)*effectiveness*random/5));return{damage,effectiveness,stab};}
 export function chooseOpponentMove(a:BattlePokemon,d:BattlePokemon){return a.moves.filter(m=>m.pp>0&&m.category!=="status").sort((x,y)=>calculateDamage(a,d,y).damage-calculateDamage(a,d,x).damage)[0]||a.moves.find(m=>m.name==="Struggle")||a.moves[0];}
 export function effectivenessLabel(v:number){if(v===0)return"No effect";if(v>=4)return"Super effective ×4";if(v===2)return"Super effective";if(v===.5)return"Not very effective";if(v>0&&v<.5)return"Barely effective";return"Normal effectiveness";}
+
+export async function fetchPokemonMoves(pokemonId:number):Promise<BattleMove[]>{
+ const response=await fetch("https://pokeapi.co/api/v2/pokemon/"+pokemonId);
+ if(!response.ok)throw new Error("Could not load Pokémon move list");
+ const pokemon=await response.json();
+ const candidates=(pokemon.moves as Array<{move:{url:string};version_group_details:Array<{level_learned_at:number;move_learn_method:{name:string}}>}>)
+  .filter(entry=>entry.version_group_details.some(detail=>detail.move_learn_method.name==="level-up"))
+  .sort((a,b)=>Math.max(...a.version_group_details.map(v=>v.level_learned_at))-Math.max(...b.version_group_details.map(v=>v.level_learned_at)));
+ const unique=candidates.filter((entry,index,array)=>array.findIndex(other=>other.move.url===entry.move.url)===index).slice(-4).reverse();
+ const moves=await Promise.all(unique.map(async entry=>{
+  const data=await (await fetch(entry.move.url)).json();
+  return {name:data.name.split("-").map((part:string)=>part[0]?.toUpperCase()+part.slice(1)).join(" "),type:data.type.name,power:data.power||0,accuracy:data.accuracy??100,pp:data.pp||10,maxPp:data.pp||10,category:data.damage_class.name as BattleMove["category"],priority:data.priority||0};
+ }));
+ return moves.length?moves:[{name:"Tackle",type:"normal",power:40,accuracy:100,pp:35,maxPp:35,category:"physical"}];
+}
