@@ -281,7 +281,7 @@ function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon
  const log=(lines:string[])=>setLogs(old=>[...lines,...old].slice(0,7));
  const reset=()=>{setParty((team.length?team:[active]).map(createBattlePokemon));setEnemy(createOpponent());setActiveId(active.id);setTurn(1);setLogs(["A wild Mewtwo challenges your team! Choose your first move."]);setStatus("active");setAttackKey(0);setLastEffect("Battle restarted");rewarded.current=false;};
  const doDamage=(attacker:BattlePokemon,defender:BattlePokemon,move:BattleMove,lines:string[])=>{
-  if(move.category==="status"&&move.name==="Protect"){defender.protected=true;lines.push(attacker.name+" used Protect! The next hit is reduced.");return;}
+  if(move.category==="status"&&move.name==="Protect"){attacker.protected=true;lines.push(attacker.name+" used Protect! The next hit is reduced.");return;}
   if(Math.random()*100>move.accuracy){lines.push(attacker.name+" used "+move.name+", but missed!");return;}
   const result=calculateDamage(attacker,defender,move),damage=defender.protected?Math.floor(result.damage*.25):result.damage;
   defender.protected=false;defender.hp=Math.max(0,defender.hp-damage);lines.push(attacker.name+" used "+move.name+" — "+damage+" damage. "+effectivenessLabel(result.effectiveness)+".");
