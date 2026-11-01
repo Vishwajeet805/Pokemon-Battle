@@ -47,3 +47,40 @@ export async function fetchPokemonMoves(pokemonId:number):Promise<BattleMove[]>{
  }));
  return moves.length?moves:[{name:"Tackle",type:"normal",power:40,accuracy:100,pp:35,maxPp:35,category:"physical"}];
 }
+
+
+export type EvolutionOption = {
+ fromId:number; fromName:string; toId:number; toName:string;
+ trigger:string; minLevel:number|null; item:string|null; heldItem:string|null;
+ minHappiness:number|null; timeOfDay:string|null; location:string|null;
+ tradeSpecies:string|null; knownMove:string|null;
+};
+type EvolutionNode={species:{name:string;url:string};evolution_details:Array<Record<string,any>>;evolves_to:EvolutionNode[]};
+function speciesId(url:string){return Number(url.split("/").filter(Boolean).pop());}
+export async function fetchEvolutionOptions(pokemonId:number):Promise<EvolutionOption[]>{
+ const speciesResponse=await fetch("https://pokeapi.co/api/v2/pokemon-species/"+pokemonId);
+ if(!speciesResponse.ok)throw new Error("Could not load species evolution data");
+ const species=await speciesResponse.json();
+ const chainResponse=await fetch(species.evolution_chain.url);
+ if(!chainResponse.ok)throw new Error("Could not load evolution chain");
+ const chain=await chainResponse.json();
+ const options:EvolutionOption[]=[];
+ const walk=(node:EvolutionNode)=>{
+  for(const next of node.evolves_to||[]){
+   for(const detail of next.evolution_details||[]){
+    options.push({
+     fromId:speciesId(node.species.url),fromName:node.species.name,
+     toId:speciesId(next.species.url),toName:next.species.name,
+     trigger:detail.trigger?.name||"unknown",minLevel:detail.min_level??null,
+     item:detail.item?.name||null,heldItem:detail.held_item?.name||null,
+     minHappiness:detail.min_happiness??null,timeOfDay:detail.time_of_day||null,
+     location:detail.location?.name||null,tradeSpecies:detail.trade_species?.name||null,
+     knownMove:detail.known_move?.name||null,
+    });
+   }
+   walk(next);
+  }
+ };
+ walk(chain.chain as EvolutionNode);
+ return options.filter(option=>option.fromId===pokemonId);
+}
