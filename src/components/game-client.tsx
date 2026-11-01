@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { calculateDamage, chooseOpponentMove, createBattlePokemon, createOpponent, effectivenessLabel, type BattleMove, type BattlePokemon } from "./battle-engine";
+import { calculateDamage, chooseOpponentMove, createBattlePokemon, createOpponent, effectivenessLabel, fetchPokemonMoves, type BattleMove, type BattlePokemon } from "./battle-engine";
 import {
   Activity, Bell, BookOpen, Check, ChevronDown, ChevronRight, Coins, Crown,
   Flame, Gem, Gift, Grid2X2, Home, Menu, PackageOpen,
@@ -294,6 +294,17 @@ function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon
  const [attackKey,setAttackKey]=useState(0),[attackType,setAttackType]=useState("Fire"),[lastEffect,setLastEffect]=useState("Battle started");
  const rewarded=useRef(false);
  const current=party.find(p=>p.id===activeId&&!p.fainted)||party.find(p=>!p.fainted);
+ const [movesLoading,setMovesLoading]=useState(true);
+ useEffect(()=>{
+  let cancelled=false;
+  setMovesLoading(true);
+  fetchPokemonMoves(activeId).then(moves=>{
+   if(cancelled)return;
+   setParty(old=>old.map(p=>p.id===activeId?{...p,moves}:p));
+  }).catch(()=>{if(!cancelled)log(["Could not load live moves. Using the fallback move set."]);})
+   .finally(()=>{if(!cancelled)setMovesLoading(false);});
+  return()=>{cancelled=true;};
+ },[activeId]);
  useEffect(()=>{if(status==="victory"&&!rewarded.current){rewarded.current=true;onReward();}},[status,onReward]);
  const log=(lines:string[])=>setLogs(old=>[...lines,...old].slice(0,7));
  const reset=()=>{setParty((team.length?team:[active]).map(createBattlePokemon));setEnemy(createOpponent());setActiveId(active.id);setTurn(1);setLogs(["A wild Mewtwo challenges your team! Choose your first move."]);setStatus("active");setAttackKey(0);setLastEffect("Battle restarted");rewarded.current=false;};
@@ -339,7 +350,7 @@ function BattleView({active,team,onSelect,onReward}:{active:Pokemon;team:Pokemon
    <div className="combatant combatant-player"><div className="combatant-label"><b>{current?.name||"No Pokémon"}</b><small>YOUR ACTIVE POKÉMON · {current?.type||"—"}</small><i><em style={{width:(current?percent(current):0)+"%"}}/></i><small>HP {current?.hp||0}/{current?.maxHp||0}</small></div></div><div className="vs-mark">VS</div>
    <div className="combatant combatant-enemy"><div className="combatant-label"><b>{enemy.name}</b><small>LV. 58 · OPPONENT · {enemy.type}</small><i><em style={{width:percent(enemy)+"%"}}/></i><small>HP {enemy.hp}/{enemy.maxHp}</small></div></div><div className="arena-ground"/></div>
   <div className="battle-command"><div><div className="eyebrow">COMMAND PHASE · {status.toUpperCase()}</div><h3>{status==="victory"?"OPPONENT DEFEATED":status==="defeat"?"YOUR PARTY FAINTED":"WHAT WILL "+(current?.name||"YOUR POKÉMON").toUpperCase()+" DO?"}</h3><p>{lastEffect}</p></div>
-   {status==="active"&&current&&<div className="move-grid battle-move-grid">{current.moves.map((m,i)=><button key={m.name} onClick={()=>runMove(i)} disabled={!m.pp} className={"battle-move battle-type-"+m.type}><span className="battle-move-type">{m.type.toUpperCase()}</span><b>{m.name}</b><small>{m.category.toUpperCase()} · POWER {m.power||"—"}</small><small>PP {m.pp}/{m.maxPp}</small></button>)}</div>}
+   {status==="active"&&current&&<div className="move-grid battle-move-grid">{movesLoading?<div className="loading-panel">Loading {current.name}\u2019s real moves from PokéAPI...</div>:current.moves.map((m,i)=><button key={m.name} onClick={()=>runMove(i)} disabled={!m.pp||movesLoading} className={"battle-move battle-type-"+m.type}><span className="battle-move-type">{m.type.toUpperCase()}</span><b>{m.name}</b><small>{m.category.toUpperCase()} · POWER {m.power||"—"}</small><small>PP {m.pp}/{m.maxPp}</small></button>)}</div>}
    {status!=="active"&&<div className={"battle-result "+(status==="victory"?"result-win":"result-loss")}><Trophy size={19}/><b>{status==="victory"?"VICTORY · +250 COINS":"DEFEAT · TRAIN AGAIN"}</b><button className="gold-button" onClick={reset}>BATTLE AGAIN</button></div>}
   </div></div><aside className="panel battle-side"><div className="section-heading"><h2>YOUR PARTY</h2><span>{party.filter(p=>!p.fainted).length}/{party.length} READY</span></div>
   {party.map(p=><button key={p.id} className={"battle-party-row "+(p.id===activeId?"party-active":"")+(p.fainted?" party-fainted":"")} onClick={()=>switchPokemon(p.id)} disabled={p.fainted||status!=="active"}><PokemonArt pokemon={team.find(t=>t.id===p.id)||active} size={52}/><span><b>{p.name}</b><small>{p.fainted?"FAINTED":p.hp+"/"+p.maxHp+" HP"}</small><i className="party-hp-track"><em style={{width:percent(p)+"%"}}/></i></span>{p.id===activeId?<Check size={15}/>:<ChevronRight size={15}/>}</button>)}
