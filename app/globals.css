@@ -115,3 +115,5 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .battle-log p{font-size:9px;line-height:1.55;color:#9ba9bd;padding:6px 0;border-bottom:1px solid #ffffff0d;}
 .battle-log p.log-latest{color:#f3d49c;}
 @media(max-width:720px){.battle-move-grid{grid-template-columns:1fr 1fr}.battle-result{flex-wrap:wrap}.battle-result .gold-button{margin-left:0}.battle-move{min-height:90px;padding:10px!important}}
+
+.dex-load-more{display:flex;justify-content:center;padding:18px 0 28px}.dex-load-more .outline-button{min-width:280px;letter-spacing:.08em;font:700 9px 'JetBrains Mono';}

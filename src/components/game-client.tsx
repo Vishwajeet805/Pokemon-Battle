@@ -95,6 +95,8 @@ export default function GameClient() {
   const [activePokemon,setActivePokemon]=useState(6);
   const [search,setSearch]=useState("");
   const [typeFilter,setTypeFilter]=useState("All Pokémon");
+  const [typePokemonIds,setTypePokemonIds]=useState<number[]|null>(null);
+  const [dexPage,setDexPage]=useState(1);
   const [pokedex,setPokedex]=useState<{id:number;name:string}[]>([]);
   const [dexLoaded,setDexLoaded]=useState(false);
   const [dexLoading,setDexLoading]=useState(false);
@@ -168,9 +170,22 @@ export default function GameClient() {
     } catch { setDexDetail({id,name:"Unavailable",error:true}); }
   }
 
-  const visibleDex=(pokedex.length?pokedex:roster.map(p=>({id:p.id,name:p.name.toLowerCase()})))
+  const filteredDex=(pokedex.length?pokedex:roster.map(p=>({id:p.id,name:p.name.toLowerCase()})))
     .filter(p=>p.name.includes(search.toLowerCase().trim()) || String(p.id).includes(search.trim()))
-    .slice(0,72);
+    .filter(p=>!typePokemonIds || typePokemonIds.includes(p.id));
+  const visibleDex=filteredDex.slice(0,dexPage*48);
+
+  useEffect(()=>{setDexPage(1);},[search,typeFilter]);
+  useEffect(()=>{
+    if(!typeFilter.startsWith("Type: ")){setTypePokemonIds(null);return;}
+    let cancelled=false;
+    const slug=typeFilter.slice(6).toLowerCase();
+    fetch("https://pokeapi.co/api/v2/type/"+slug)
+      .then(r=>{if(!r.ok)throw new Error("Type lookup failed");return r.json();})
+      .then(data=>{if(!cancelled)setTypePokemonIds(data.pokemon.map((entry:{pokemon:{url:string}})=>Number(entry.pokemon.url.split("/").filter(Boolean).pop())));})
+      .catch(()=>{if(!cancelled)setTypePokemonIds([]);});
+    return()=>{cancelled=true;};
+  },[typeFilter]);
   const visibleCollection=roster.filter(p=>owned.includes(p.id) && (activeTab==="All Cards" || (activeTab==="Legendary" ? ["Legendary","Mythical"].includes(p.rarity) : p.rarity===activeTab)));
 
   return <div className="app-frame">
@@ -207,7 +222,7 @@ export default function GameClient() {
 
       {screen==="dashboard" && <Dashboard team={team} owned={owned.length} coins={coins} claimed={claimed} onClaim={()=>{if(!claimed){setCoins(v=>v+500);setClaimed(true);notify("Daily reward claimed: +500 coins.");}}} onNavigate={navigate} onToast={notify}/>}
       {screen==="pokedex" && <section className="panel-stack">
-        <div className="panel toolbar-panel"><div className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Pokémon name or number..."/></div><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option>All Pokémon</option><option>Owned</option><option>Unowned</option></select><span className="result-count">{pokedex.length? "1,025": "Featured"} ENTRIES</span></div>
+        <div className="panel toolbar-panel"><div className="search-box"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Pokémon name or number..."/></div><select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option>All Pokémon</option><option>Owned</option><option>Unowned</option><optgroup label="FILTER BY TYPE">{["Normal","Fire","Water","Electric","Grass","Ice","Fighting","Poison","Ground","Flying","Psychic","Bug","Rock","Ghost","Dragon","Dark","Steel","Fairy"].map(type=><option key={type}>Type: {type}</option>)}</optgroup></select><span className="result-count">{filteredDex.length.toLocaleString("en-US")} MATCHES</span></div>
         {dexLoading&&<div className="panel loading-panel"><Sparkles className="spin-icon"/> Connecting to PokéAPI and loading the National Pokédex...</div>}
         {dexError&&<div className="panel error-panel">{dexError}<button className="outline-button" onClick={()=>{setDexLoaded(false);setDexError("");}}>Retry</button></div>}
         <div className="dex-grid">{visibleDex.map(p=>{
@@ -218,6 +233,7 @@ export default function GameClient() {
           return <button className={"dex-card "+(!isOwned?"dex-unowned":"")} key={p.id} onClick={()=>inspectPokemon(p.id)}><span className="dex-number">#{String(p.id).padStart(4,"0")}</span><img src={ART+p.id+".png"} alt={p.name} loading="lazy"/><b>{p.name.replace(/-/g," ")}</b><small>{mon?.type||"Pokémon species"}</small><span className="dex-owned">{isOwned?"IN BINDER":"UNDISCOVERED"}</span></button>;
         })}</div>
         {!dexLoading&&visibleDex.length===0&&<div className="empty-panel">No Pokémon matched your search.</div>}
+        {visibleDex.length<filteredDex.length&&<div className="dex-load-more"><button className="outline-button" onClick={()=>setDexPage(page=>page+1)}>LOAD MORE POKÉMON · {filteredDex.length-visibleDex.length} REMAINING</button></div>}
         {dexDetail&&<div className="modal-backdrop" onClick={()=>setDexDetail(null)}><div className="detail-modal" onClick={e=>e.stopPropagation()}><button className="modal-close" onClick={()=>setDexDetail(null)}><X/></button>{dexDetail.loading?<div className="loading-panel">Loading Pokémon data...</div>:<><div className="detail-art"><img src={ART+dexDetail.id+".png"} alt={dexDetail.name}/></div><div className="detail-content"><div className="eyebrow">NATIONAL POKÉDEX #{dexDetail.id}</div><h2>{dexDetail.name?.replace(/-/g," ")}</h2>{dexDetail.error?<p>Pokémon details could not be loaded.</p>:<><div className="type-row">{dexDetail.types?.map((t:string)=><TypeBadge key={t} type={t}/>)}</div><div className="detail-facts"><span>HEIGHT <b>{(dexDetail.height/10).toFixed(1)} m</b></span><span>WEIGHT <b>{(dexDetail.weight/10).toFixed(1)} kg</b></span></div><h3>BASE STATS</h3>{dexDetail.stats?.map((s:any)=><div className="stat-line" key={s.name}><span>{s.name.replace("-"," ")}</span><b>{s.value}</b><i><em style={{width:Math.min(100,s.value/2)+"%"}}/></i></div>)}<p className="ability-line">Abilities: {dexDetail.abilities?.join(", ")}</p></>}</div></>}</div></div>}
       </section>}
 
