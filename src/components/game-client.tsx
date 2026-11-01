@@ -292,7 +292,7 @@ export default function GameClient() {
         <div className="panel" style={{padding:22}}>
           <div className="section-heading"><div><h2>NEXT EVOLUTION</h2><p>Evolution paths and trigger requirements are read from the official PokéAPI dataset.</p></div><span className="result-count">#{evolutionTarget}</span></div>
           {evolutionLoading&&<div className="loading-panel">Reading evolution chain...</div>}
-          {evolutionError&&<div className="error-panel">{evolutionError}<button className="outline-button" onClick={()=>setEvolutionTarget(id=>id)}>Retry</button></div>}
+          {evolutionError&&<div className="error-panel">{evolutionError}<button className="outline-button" onClick={()=>{setEvolutionLoading(true);setEvolutionError("");fetchEvolutionOptions(evolutionTarget).then(setEvolutionOptions).catch(()=>setEvolutionError("Evolution data could not be loaded. Check your connection and retry.")).finally(()=>setEvolutionLoading(false));}}>Retry</button></div>}
           {!evolutionLoading&&!evolutionError&&evolutionOptions.length===0&&<div className="empty-panel">No further evolution is listed for this Pokémon, or it is already at the end of its evolution line.</div>}
           <div className="dex-grid">{evolutionOptions.map(option=>{
             const item=option.item||option.heldItem;
