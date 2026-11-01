@@ -215,7 +215,7 @@ export default function GameClient() {
       const response=await fetch("https://pokeapi.co/api/v2/pokemon/"+option.toId);
       if(!response.ok)throw new Error("Could not load evolved Pokémon");
       const data=await response.json();
-      const evolved:Pokemon={id:data.id,name:data.name.replace(/-/g," ").replace(/\\b\\w/g,(letter:string)=>letter.toUpperCase()),type:data.types.map((entry:any)=>entry.type.name).join(" · "),cp:Math.round(data.stats.reduce((sum:number,s:any)=>sum+s.base_stat,0)*8),hp:Math.max(60,Math.round(data.stats[0].base_stat)),rarity:"Epic"};
+      const evolved:Pokemon={id:data.id,name:data.name.replace(/-/g," ").replace(/\b\w/g,(letter:string)=>letter.toUpperCase()),type:data.types.map((entry:any)=>entry.type.name).join(" · "),cp:Math.round(data.stats.reduce((sum:number,s:any)=>sum+s.base_stat,0)*8),hp:Math.max(60,Math.round(data.stats[0].base_stat)),rarity:"Epic"};
       setExtraPokemon(old=>[...old.filter(p=>p.id!==evolved.id),evolved]);
       setOwned(old=>Array.from(new Set([...old.filter(id=>id!==option.fromId),evolved.id])));
       setSelectedTeam(old=>old.map(id=>id===option.fromId?evolved.id:id));
